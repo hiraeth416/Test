@@ -8,7 +8,7 @@ from opencood.loss.point_pillar_loss import PointPillarLoss
 
 class PointPillarDepthLoss(PointPillarLoss):
     def __init__(self, args):
-        super(PointPillarLoss, self).__init__()
+        super().__init__(args)
         self.depth = args['depth']
 
 
@@ -22,6 +22,35 @@ class PointPillarDepthLoss(PointPillarLoss):
         else:
             self.depth_loss_func = FocalLoss(alpha=0.25, gamma=2.0, reduction="none")
 
+    # def forward(self, output_dict, target_dict, suffix=""):
+    #     """
+    #     Parameters
+    #     ----------
+    #     output_dict : dict
+    #     target_dict : dict
+    #     """
+
+    #     total_loss = super().forward(output_dict, target_dict, suffix)
+
+    #     ######## Depth Supervision ########
+    #     if f"depth_items{suffix}" in output_dict and output_dict[f'depth_items{suffix}'] is not None:
+    #         # depth logdit: [N, D, H, W]
+    #         # depth gt indices: [N, H, W]
+    #         # fg_mask: [N, H, W]
+    #         depth_logit, depth_gt_indices = output_dict[f'depth_items{suffix}'][0], output_dict[f'depth_items{suffix}'][1]
+    #         depth_loss = self.depth_loss_func(depth_logit, depth_gt_indices) 
+    #         if self.use_fg_mask:
+    #             fg_mask = output_dict[f'depth_items{suffix}'][-1]
+    #             weight_mask = (fg_mask > 0) * self.fg_weight + (fg_mask == 0) * self.bg_weight
+    #             depth_loss *= weight_mask
+
+    #         depth_loss = depth_loss.mean() * self.depth_weight 
+
+    #         total_loss += depth_loss
+    #         self.loss_dict.update({'depth_loss': depth_loss})
+        
+    #     return total_loss
+
     def forward(self, output_dict, target_dict, suffix=""):
         """
         Parameters
@@ -31,28 +60,32 @@ class PointPillarDepthLoss(PointPillarLoss):
         """
 
         total_loss = super().forward(output_dict, target_dict, suffix)
-
+        all_depth_loss = 0
+        depth_items_list = [x for x in output_dict.keys() if x.startswith(f"depth_items{suffix}")]
         ######## Depth Supervision ########
-        if f"depth_items{suffix}" in output_dict and output_dict[f'depth_items{suffix}'] is not None:
+        for depth_item_name in depth_items_list:
+            depth_item = output_dict[depth_item_name]
+
             # depth logdit: [N, D, H, W]
             # depth gt indices: [N, H, W]
             # fg_mask: [N, H, W]
-            depth_logit, depth_gt_indices = output_dict[f'depth_items{suffix}'][0], output_dict[f'depth_items{suffix}'][1]
+            depth_logit, depth_gt_indices = depth_item[0], depth_item[1]
             depth_loss = self.depth_loss_func(depth_logit, depth_gt_indices) 
             if self.use_fg_mask:
-                fg_mask = output_dict[f'depth_items{suffix}'][-1]
+                fg_mask = depth_item[-1]
                 weight_mask = (fg_mask > 0) * self.fg_weight + (fg_mask == 0) * self.bg_weight
                 depth_loss *= weight_mask
 
             depth_loss = depth_loss.mean() * self.depth_weight 
+            all_depth_loss += depth_loss
 
-            total_loss += depth_loss
-            self.loss_dict.update({'depth_loss': depth_loss})
+        total_loss += all_depth_loss
+        self.loss_dict.update({'depth_loss': all_depth_loss}) # no update the total loss in dict
         
         return total_loss
 
 
-    def logging(self, epoch, batch_id, batch_len, writer = None):
+    def logging(self, epoch, batch_id, batch_len, writer = None, suffix=""):
         """
         Print out  the loss function for current iteration.
 
@@ -75,21 +108,21 @@ class PointPillarDepthLoss(PointPillarLoss):
         depth_loss = self.loss_dict.get('depth_loss', 0)
 
 
-        print("[epoch %d][%d/%d] || Loss: %.4f || Conf Loss: %.4f"
+        print("[epoch %d][%d/%d]%s || Loss: %.4f || Conf Loss: %.4f"
               " || Loc Loss: %.4f || Dir Loss: %.4f || IoU Loss: %.4f || Depth Loss: %.4f" % (
-                  epoch, batch_id + 1, batch_len,
+                  epoch, batch_id + 1, batch_len, suffix,
                   total_loss, cls_loss, reg_loss, dir_loss, iou_loss, depth_loss))
 
         if not writer is None:
-            writer.add_scalar('Regression_loss', reg_loss,
+            writer.add_scalar('Regression_loss' + suffix, reg_loss,
                             epoch*batch_len + batch_id)
-            writer.add_scalar('Confidence_loss', cls_loss,
+            writer.add_scalar('Confidence_loss' + suffix, cls_loss,
                             epoch*batch_len + batch_id)
-            writer.add_scalar('Dir_loss', dir_loss,
+            writer.add_scalar('Dir_loss' + suffix, dir_loss,
                             epoch*batch_len + batch_id)
-            writer.add_scalar('Iou_loss', iou_loss,
+            writer.add_scalar('Iou_loss' + suffix, iou_loss,
                             epoch*batch_len + batch_id)
-            writer.add_scalar('Depth_loss', depth_loss,
+            writer.add_scalar('Depth_loss' + suffix, depth_loss,
                             epoch*batch_len + batch_id)
 
 

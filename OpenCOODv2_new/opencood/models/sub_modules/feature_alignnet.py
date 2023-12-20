@@ -5,7 +5,6 @@ import torch.nn.functional as F
 from mmcv.ops import DeformConv2dPack as dconv2d
 from timm.models.layers import DropPath
 from opencood.models.sub_modules.cbam import BasicBlock
-import math
 from opencood.models.sub_modules.feature_alignnet_modules import SCAligner, Res1x1Aligner, \
     Res3x3Aligner, Res3x3Aligner, CBAM, ConvNeXt, FANet, SDTAAgliner
 import numpy as np
@@ -278,24 +277,24 @@ class AlignNet(nn.Module):
     def __init__(self, args):
         super().__init__()
         model_name = args['core_method']
+        
         if model_name == "scaligner":
             self.channel_align = SCAligner(args['args'])
         elif model_name == "resnet1x1":
-            self.model = Resnet1x1(args['args'], deform = False)
+            self.channel_align = Res1x1Aligner(args['args'])
         elif model_name == "resnet3x3":
-            self.model = Resnet3x3(args['args'], deform = False)
-        elif model_name == "cbam":
-            self.model = CBAM(args['args'])
+            self.channel_align = Res3x3Aligner(args['args'])
         elif model_name == "sdta":
-            self.model = SDTA(args['args'], deform=False)
+            self.channel_align = SDTAAgliner(args['args'])
         elif model_name == "cbam":
             self.channel_align = CBAM(args['args'])
         elif model_name == "convnext":
             self.channel_align = ConvNeXt(args['args'])
         elif model_name == "fanet":
             self.channel_align = FANet(args['args'])
-        elif model_name == "identity":
-            self.model = nn.Identity()
+        elif model_name == 'identity':
+            self.channel_align = nn.Identity()
+
         self.spatial_align_flag = args.get("spatial_align", False)
         if self.spatial_align_flag:
             warpnet_indim = args['args']['warpnet_indim']
@@ -318,7 +317,6 @@ class AlignNet(nn.Module):
 
     def forward(self, x):
         return self.channel_align(x)
-        # return self.model(x)
 
     def spatail_align(self, student_feature, teacher_feature, physical_dist):
         physical_offset = self.warpnet(torch.cat([student_feature, teacher_feature], dim=1)).permute(0,2,3,1) # N, H, W, 2, unit is meter.

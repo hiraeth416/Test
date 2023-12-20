@@ -83,7 +83,6 @@ def test_parser():
     
     parser.add_argument('--min_cav_num', default = 10, type = int)
     parser.add_argument('--max_cav_num', default = 10, type = int)
-
     opt = parser.parse_args()
     return opt
 
@@ -403,15 +402,16 @@ def main():
                     pred_box_tensor = infer_result['pred_box_tensor']
                     gt_box_tensor = infer_result['gt_box_tensor']
                     pred_score = infer_result['pred_score']
+                    point_num = infer_result['point_num']
 
-                    # cls_preds = infer_result['cls_preds']
-                    # cls_preds_before_fusion= infer_result['cls_preds_before_fusion']
+                    cls_preds = infer_result['cls_preds']
+                    cls_preds_before_fusion= infer_result['cls_preds_before_fusion']
 
-                    # stat_sample_dict={
-                    #     'cls_preds':cls_preds,
-                    #     'cls_preds_before_fusion':cls_preds_before_fusion
-                    # }
-                    # stat.update({i:stat_sample_dict})
+                    stat_sample_dict={
+                        'cls_preds':cls_preds,
+                        'cls_preds_before_fusion':cls_preds_before_fusion
+                    }
+                    stat.update({i:stat_sample_dict})
                     # if "comm_rate" in infer_result:
                     #     comm_rates.append(infer_result["comm_rate"].cpu().numpy())
                     if "comm_rates" in infer_result:

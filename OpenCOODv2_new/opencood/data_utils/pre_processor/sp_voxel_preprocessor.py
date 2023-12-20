@@ -156,7 +156,6 @@ class SpVoxelPreprocessor(BasePreprocessor):
         processed_batch : dict
             Updated lidar batch.
         """
-        # print(batch)
         voxel_features = \
             torch.from_numpy(np.concatenate(batch['voxel_features']))
         voxel_num_points = \

@@ -104,6 +104,8 @@ class PyramidWindowAttention(nn.Module):
             self.split_attn = SplitAttn(256)
         elif fuse_method == 'split_attn128':
             self.split_attn = SplitAttn(128)
+        elif fuse_method == 'split_attn64':
+            self.split_attn = SplitAttn(64)
 
     def forward(self, x):
         output = None
@@ -114,7 +116,7 @@ class PyramidWindowAttention(nn.Module):
                 output = wmsa(x) if output is None else output + wmsa(x)
             return output / len(self.pwmsa)
 
-        elif self.fuse_mehod == 'split_attn':
+        elif self.fuse_mehod.startswith('split_attn'):
             window_list = []
             for wmsa in self.pwmsa:
                 window_list.append(wmsa(x))

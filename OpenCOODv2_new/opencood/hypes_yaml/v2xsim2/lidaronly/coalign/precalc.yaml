@@ -47,7 +47,7 @@ postprocess: &postprocess_param
   target_args:
     pos_threshold: 0.6
     neg_threshold: 0.45
-    score_threshold: 0.20
+    score_threshold: 0.25
   order: 'hwl' # hwl or lwh
   max_num: 100 # maximum number of objects in a single frame. use this number to make sure different frames has the same dimension in the same batch
   nms_thresh: 0.15

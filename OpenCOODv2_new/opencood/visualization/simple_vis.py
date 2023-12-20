@@ -6,7 +6,7 @@ from opencood.tools.inference_utils import get_cav_box
 import opencood.visualization.simple_plot3d.canvas_3d as canvas_3d
 import opencood.visualization.simple_plot3d.canvas_bev as canvas_bev
 
-def visualize(infer_result, pcd, pc_range, save_path, method='3d', vis_gt_box=True, vis_pred_box=True, left_hand=False):
+def visualize(infer_result, pcd, pc_range, save_path, method='3d', left_hand=False):
         """
         Visualize the prediction, ground truth with point cloud together.
         They may be flipped in y axis. Since carla is left hand coordinate, while kitti is right hand.
@@ -87,10 +87,7 @@ def visualize(infer_result, pcd, pc_range, save_path, method='3d', vis_gt_box=Tr
                                     for i in range(uncertainty_np.shape[0])]                    
 
         if gt_box_tensor is not None:
-            try:
-                gt_box_np = gt_box_tensor.cpu().numpy()
-            except AttributeError:
-                gt_box_np = gt_box_tensor
+            gt_box_np = gt_box_tensor.cpu().numpy()
             gt_name = ['gt'] * gt_box_np.shape[0]
 
         if method == 'bev':
@@ -102,19 +99,29 @@ def visualize(infer_result, pcd, pc_range, save_path, method='3d', vis_gt_box=Tr
             canvas_xy, valid_mask = canvas.get_canvas_coords(pcd_np) # Get Canvas Coords
             canvas.draw_canvas_points(canvas_xy[valid_mask]) # Only draw valid points
             if gt_box_tensor is not None:
-                canvas.draw_boxes(gt_box_np,colors=(0,255,0), texts=gt_name)
+                #canvas.draw_boxes(gt_box_np,colors=(0,255,0), texts=gt_name)
+                canvas.draw_boxes(gt_box_np,colors=(0,255,0), texts=None)
             if pred_box_tensor is not None:
-                canvas.draw_boxes(pred_box_np, colors=(255,0,0), texts=pred_name)
+                #canvas.draw_boxes(pred_box_np, colors=(255,0,0), texts=pred_name)
+                canvas.draw_boxes(pred_box_np, colors=(255,0,0), texts=None)
 
             # heterogeneous
-            lidar_agent_record = infer_result.get("lidar_agent_record", None)
+            agent_modality_list = infer_result.get("agent_modality_list", None)
             cav_box_np = infer_result.get("cav_box_np", None)
-            if lidar_agent_record is not None:
+            if agent_modality_list is not None:
                 cav_box_np = copy.deepcopy(cav_box_np)
-                for i, islidar in enumerate(lidar_agent_record):
-                    text = ['lidar'] if islidar else ['camera']
-                    color = (0,191,255) if islidar else (255,185,15)
-                    canvas.draw_boxes(cav_box_np[i:i+1], colors=color, texts=text)
+                for i, modality_name in enumerate(agent_modality_list):
+                    if modality_name == "m1":
+                        color = (0,191,255)
+                    elif modality_name == "m2":
+                        color = (255,185,15)
+                    elif modality_name == "m3":
+                        color = (123,0,70)
+                    elif modality_name == 'm4':
+                        color = (32, 60, 160)
+                    else:
+                        color = (66,66,66)
+                    canvas.draw_boxes(cav_box_np[i:i+1], colors=color, texts=[modality_name])
 
 
 
@@ -128,14 +135,20 @@ def visualize(infer_result, pcd, pc_range, save_path, method='3d', vis_gt_box=Tr
                 canvas.draw_boxes(pred_box_np, colors=(255,0,0), texts=pred_name)
 
             # heterogeneous
-            lidar_agent_record = infer_result.get("lidar_agent_record", None)
+            agent_modality_list = infer_result.get("agent_modality_list", None)
             cav_box_np = infer_result.get("cav_box_np", None)
-            if lidar_agent_record is not None:
+            if agent_modality_list is not None:
                 cav_box_np = copy.deepcopy(cav_box_np)
-                for i, islidar in enumerate(lidar_agent_record):
-                    text = ['lidar'] if islidar else ['camera']
-                    color = (0,191,255) if islidar else (255,185,15)
-                    canvas.draw_boxes(cav_box_np[i:i+1], colors=color, texts=text)
+                for i, modality_name in enumerate(agent_modality_list):
+                    if modality_name == "m1":
+                        color = (0,191,255)
+                    elif modality_name == "m2":
+                        color = (255,185,15)
+                    elif modality_name == "m3":
+                        color = (123,0,70)
+                    else:
+                        color = (66,66,66)
+                    canvas.draw_boxes(cav_box_np[i:i+1], colors=color, texts=[modality_name])
 
         else:
             raise(f"Not Completed for f{method} visualization.")

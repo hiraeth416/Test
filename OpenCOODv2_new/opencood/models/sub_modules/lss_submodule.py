@@ -147,17 +147,14 @@ class CamEncode_Resnet101(nn.Module):  # 提取图像特征进行图像编码
         self.use_gt_depth = use_gt_depth
         self.depth_supervision = depth_supervision # in the case of not use gt depth
 
-        
-        self.trunk = resnet101(pretrained=False, zero_init_residual=True)  # 使用 resnet101 提取特征
-        self.conv1 = self.trunk.conv1
-        self.bn1 = self.trunk.bn1
-        self.relu = self.trunk.relu
-        self.maxpool = self.trunk.maxpool
-        self.layer1 = self.trunk.layer1
-        self.layer2 = self.trunk.layer2
-        self.layer3 = self.trunk.layer3
-
-        self.final_conv = nn.Conv2d(1024,512,kernel_size=3,padding=1)# 图像尺寸不变，channel变为512（downsample=16的时候用到）
+        trunk = resnet101(pretrained=False, zero_init_residual=True)  # 使用 resnet101 提取特征
+        self.conv1 = trunk.conv1
+        self.bn1 = trunk.bn1
+        self.relu = trunk.relu
+        self.maxpool = trunk.maxpool
+        self.layer1 = trunk.layer1
+        self.layer2 = trunk.layer2
+        self.layer3 = nn.Identity()
 
         self.up1 = Up(320+112, 512)  # 上采样模块，输入输出通道分别为320+112和512
         if downsample == 8:

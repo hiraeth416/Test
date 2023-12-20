@@ -175,7 +175,7 @@ def main():
                                             0.7)
 
 
-                    if (i % opt.save_vis_interval == 0) and (pred_box_tensor is not None) and (use_laplace is False):
+                    if (i % opt.save_vis_interval == 0) and (pred_box_tensor is not None or gt_box_tensor is not None) and (use_laplace is False):
                         vis_save_path_root = os.path.join(opt.model_dir, f'vis_{noise_level}')
                         if not os.path.exists(vis_save_path_root):
                             os.makedirs(vis_save_path_root)

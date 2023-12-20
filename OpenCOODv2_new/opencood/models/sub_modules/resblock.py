@@ -158,11 +158,6 @@ class ResNetModified(nn.Module):
         self.groups = groups
         self.base_width = width_per_group
 
-        # self.layer1 = self._make_layer(block, num_filters[0], layers[0], stride=layer_strides[0])
-        # self.layer2 = self._make_layer(block, num_filters[1], layers[1], stride=layer_strides[1],
-        #                                dilate=replace_stride_with_dilation[0])
-        # self.layer3 = self._make_layer(block, num_filters[2], layers[2], stride=layer_strides[2],
-        #                                dilate=replace_stride_with_dilation[1])
         self.layernum = len(num_filters)
         for i in range(self.layernum):
             self.__setattr__(f"layer{i}", self._make_layer(block, num_filters[i], layers[i], stride=layer_strides[i]))
@@ -214,14 +209,6 @@ class ResNetModified(nn.Module):
 
     def _forward_impl(self, x: Tensor, return_interm: bool = True):
         # See note [TorchScript super()]
-
-        # x1 = self.layer1(x)
-        # x2 = self.layer2(x1)
-        # x3 = self.layer3(x2)
-
-        # if return_interm:
-        #     return (x1,x2,x3)
-        # return x3
         interm_features = []
         for i in range(self.layernum):
             x = eval(f"self.layer{i}")(x)

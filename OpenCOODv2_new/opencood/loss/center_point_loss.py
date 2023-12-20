@@ -205,14 +205,12 @@ class CenterPointLoss(nn.Module):
         output_dict : dict
         target_dict : dict
         """
-        # Predictions
-        # import pdb
-        # pdb.set_trace()
+        # Predictions 
         box_preds = output_dict['bbox_preds{}'.format(suffix)].permute(0, 2, 3, 1).contiguous()  # [B, H, W, C]
         cls_preds = clip_sigmoid(output_dict['cls_preds{}'.format(suffix)])
         
         # GTs
-        bbox_center = target_dict['object_bbx_center{}'.format(suffix)].cpu().numpy()  #
+        bbox_center = target_dict['object_bbx_center{}'.format(suffix)].cpu().numpy()
         bbox_mask = target_dict['object_bbx_mask{}'.format(suffix)].cpu().numpy()
         batch_size = bbox_mask.shape[0]
 
@@ -229,7 +227,7 @@ class CenterPointLoss(nn.Module):
         cls_gt =  targets_dict['heatmaps']
         box_gt = (targets_dict['anno_boxes'], targets_dict['inds'], targets_dict['masks'])
 
-        cls_loss = self.get_cls_layer_loss(cls_preds, cls_gt)  # problem in vitvit: preds [2, 1, 100, 352]; gt [2, 2, 48, 176]
+        cls_loss = self.get_cls_layer_loss(cls_preds, cls_gt)
         box_loss = self.get_box_reg_layer_loss(box_preds, box_gt)
         rpn_loss = cls_loss + box_loss
 
@@ -692,8 +690,11 @@ def l1_loss(pred, target):
     Returns:
         torch.Tensor: Calculated loss
     """
+<<<<<<< HEAD
     # import pdb
     # pdb.set_trace()
+=======
+>>>>>>> origin/lsf
     device = pred.device
     target = target.to(device)
     assert pred.size() == target.size() and target.numel() > 0

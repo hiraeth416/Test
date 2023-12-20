@@ -233,7 +233,7 @@ class HeterModelSharedheadLate(nn.Module):
     def forward(self, data_dict):
         output_dict = {}
         agent_modality_list = data_dict['agent_modality_list'] 
-        print(agent_modality_list)
+        #print(agent_modality_list)
         t_matrix = normalize_pairwise_tfm(data_dict['pairwise_t_matrix'], self.H, self.W, self.fake_voxel_size)
         pairwise_t_matrix = data_dict['pairwise_t_matrix']
         record_len = data_dict['record_len'] 
@@ -449,11 +449,11 @@ class HeterModelSharedheadLate(nn.Module):
 
         
         cls_preds = self.cls_head(feature)
-        print("cls_preds", cls_preds.shape)
+        #print("cls_preds", cls_preds.shape)
         reg_preds = self.reg_head(feature)
-        print("reg_preds", reg_preds.shape)
+        #print("reg_preds", reg_preds.shape)
         dir_preds = self.dir_head(feature)
-        print("dir_preds", dir_preds.shape)
+        #print("dir_preds", dir_preds.shape)
 
         output_dict.update({'cls_preds': cls_preds,
                             'reg_preds': reg_preds,

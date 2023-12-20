@@ -3,7 +3,9 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
+import os
 from icecream import ic
 from opencood.models.sub_modules.point_pillar_scatter import PointPillarScatter
 from opencood.models.sub_modules.base_bev_backbone_resnet import ResNetBEVBackbone 
@@ -17,6 +19,9 @@ from opencood.models.fuse_modules.modality_aware_fusion import MAttFusion
 from opencood.utils.transformation_utils import normalize_pairwise_tfm
 from opencood.models.point_pillar_ import PointPillar_
 from opencood.models.lift_splat_shoot import LiftSplatShoot
+from opencood.models.comm_modules.where2comm import Communication
+from opencood.models.sub_modules.codebook import ChannelCompressor
+from opencood.models.sub_modules.codebook import UMGMQuantizer
 
 class HeterPointPillarsLiftSplatV2(nn.Module):
     def __init__(self, args):
@@ -94,12 +99,51 @@ class HeterPointPillarsLiftSplatV2(nn.Module):
         self.dir_head = nn.Conv2d(args['in_head'], args['dir_args']['num_bins'] * args['anchor_number'],
                                   kernel_size=1) # BIN_NUM = 2
  
-        
+        self.naive_communication = Communication(args['fusion_args']['communication'])
+
+        """
+        Codebook Part
+        """
+        self.multi_channel_compressor_flag = False
+        if 'multi_channel_compressor' in args and args['multi_channel_compressor']:
+            self.multi_channel_compressor_flag = True
+
+        """
+        Get feature
+        """
+        self.get_feature_flag = False
+        if 'get_feature' in args:
+            self.get_feature_flag = True
+            print("get featrue: true")
+
+
+        channel = 64
+        p_rate = 0.0
+        seg_num = args['codebook']['seg_num']
+        dict_size = [args['codebook']['dict_size'], args['codebook']['dict_size'], args['codebook']['dict_size']]
+        self.multi_channel_compressor = UMGMQuantizer(channel, seg_num, dict_size, p_rate,
+                          {"latentStageEncoder": lambda: nn.Linear(channel, channel), "quantizationHead": lambda: nn.Linear(channel, channel),
+                           "latentHead": lambda: nn.Linear(channel, channel), "restoreHead": lambda: nn.Linear(channel, channel),
+                           "dequantizationHead": lambda: nn.Linear(channel, channel), "sideHead": lambda: nn.Linear(channel, channel)})
+        print("codebook:", self.multi_channel_compressor_flag)
+        print("seg_num: ", seg_num)        
+        print("dict_size: ", args['codebook']['dict_size'])
+
         if 'freeze_lidar' in args and args['freeze_lidar']:
             self.freeze_lidar()
         if 'freeze_camera' in args and args['freeze_camera']:
             self.freeze_camera()
+        if 'freeze_for_codebook' in args and args['freeze_for_codebook']:
+            self.freeze_for_codebook()            
+        if 'freeze_codebook' in args and args['freeze_codebook']:
+            self.freeze_codebook()
 
+    def regroup(self, x, record_len):
+        #print(x)
+        cum_sum_len = torch.cumsum(record_len, dim=0)
+        split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
+        return split_x
+        
     def freeze_lidar(self):
         for p in self.lidar_encoder.parameters():
             p.requires_grad_(False)
@@ -111,11 +155,42 @@ class HeterPointPillarsLiftSplatV2(nn.Module):
             p.requires_grad_(False)
         for p in self.camera_backbone.parameters():
             p.requires_grad_(False)
+    
+    def freeze_codebook(self):
+        for p in self.multi_channel_compressor.parameters():
+            p.requires_grad_(False)
+            
+    def freeze_for_codebook(self):
+        for p in self.backbone.parameters():
+            p.requires_grad_(False)
+        for p in self.shrink_conv.parameters():
+            p.requires_grad_(False)
+        for p in self.lidar_aligner.parameters():
+            p.requires_grad_(False)
+        for p in self.camera_aligner.parameters():
+            p.requires_grad_(False)
+        for p in self.cls_head_single.parameters():
+            p.requires_grad_(False)
+        for p in self.reg_head_single.parameters():
+            p.requires_grad_(False)
+        for p in self.dir_head_single.parameters():
+            p.requires_grad_(False)
+        for p in self.cls_head.parameters():
+            p.requires_grad_(False)
+        for p in self.reg_head.parameters():
+            p.requires_grad_(False)
+        for p in self.dir_head.parameters():
+            p.requires_grad_(False)        
+        for p in self.fusion_net.parameters():
+            p.requires_grad_(False)                
+        for p in self.naive_communication.parameters():
+            p.requires_grad_(False)
 
 
-    def forward(self, data_dict):
+    def forward(self, num, data_dict):
         lidar_agent_indicator = data_dict['lidar_agent_record'] # [sum(record_len)]
-        print(lidar_agent_indicator)
+        print("num:", num)
+        #print(lidar_agent_indicator)
         record_len = data_dict['record_len']
 
         skip_lidar, skip_camera = False, False
@@ -172,7 +247,7 @@ class HeterPointPillarsLiftSplatV2(nn.Module):
             camera_feature_2d = mask * camera_feature_2d
 
         t_matrix = normalize_pairwise_tfm(data_dict['pairwise_t_matrix'], self.H, self.W, self.fake_voxel_size)
-
+        pairwise_t_matrix = data_dict['pairwise_t_matrix']
 
         """
         Heterogeneous Agent Selection
@@ -199,6 +274,56 @@ class HeterPointPillarsLiftSplatV2(nn.Module):
         reg_preds_before_fusion = self.reg_head_single(heter_feature_2d)
         dir_preds_before_fusion = self.dir_head_single(heter_feature_2d)
 
+        #print("heter_feature_2d_shape: ", heter_feature_2d.shape)
+
+        """
+        Codebook Part
+        """
+        #print("feature_shape: ", heter_feature_2d.shape)
+        if self.get_feature_flag:
+            save_path = "/GPFS/rhome/sifeiliu/OpenCOODv2/opencood/logs/feature_folder/"
+            print("get feature", num)
+            torch.save(heter_feature_2d, os.path.join(save_path,'feature%d.pt' % (num)))
+            torch.save(record_len, os.path.join(save_path,'record_len%d.pt' % (num)))
+            codebook_loss = 0.0
+            output_dict = {'cls_preds_single': cls_preds_before_fusion, 
+                       'reg_preds_single': reg_preds_before_fusion, 
+                       'dir_preds_single': dir_preds_before_fusion, 
+                       'codebook_loss': codebook_loss}
+            return output_dict
+        
+        N, C, H, W = heter_feature_2d.shape
+        print("heter_feature_2d_shape: ", heter_feature_2d.shape)
+        parameter_dict = {}
+        # import pdb
+        # pdb.set_trace()
+        if self.multi_channel_compressor_flag:
+            print("------------Codebook information------------")
+            heter_feature_2d_gt = heter_feature_2d.clone()
+            heter_feature_2d = heter_feature_2d.permute(0, 2, 3, 1).contiguous().view(-1, C)
+            heter_feature_2d, _, _, codebook_loss = self.multi_channel_compressor(heter_feature_2d)
+            heter_feature_2d = heter_feature_2d.view(-1, H, W, C).permute(0, 3, 1, 2).contiguous()
+            heter_feature_2d_gt_split = self.regroup(heter_feature_2d_gt, record_len)
+            shape_num = 0
+            #print("record_len: ", record_len)
+            #print("heter_feature_2d_gt_shape: ", heter_feature_2d_gt.shape)
+            #print("heter_feature_2d_gt_split: ", len(heter_feature_2d_gt_split))
+            for index in range(len(heter_feature_2d_gt_split)):
+                #print("heter_feature_2d_gt_split_shape: ", heter_feature_2d_gt_split[index].shape)
+                #print(heter_feature_2d_gt_split[index].shape[0])
+                #print(shape_num)
+                heter_feature_2d[shape_num] = heter_feature_2d_gt_split[index][0]
+                shape_num = shape_num + heter_feature_2d_gt_split[index].shape[0]
+                
+            print("heter_feature_2d_shape: ", heter_feature_2d.shape)
+            parameter_dict.update({'codebook_loss': codebook_loss})
+            parameter_dict.update({'heter_feature_2d_gt': heter_feature_2d_gt})
+            print("------------Codebook information------------")
+
+            #print(heter_feature_2d[0].equal(heter_feature_2d_gt[0]))
+
+
+
         """
         Feature Fusion (multiscale).
 
@@ -210,7 +335,20 @@ class HeterPointPillarsLiftSplatV2(nn.Module):
         for i in range(1, len(self.fusion_net)):
             heter_feature_2d = self.backbone.get_layer_i_feature(heter_feature_2d, layer_i=i)
             feature_list.append(heter_feature_2d)
-
+        batch_confidence_maps = self.regroup(cls_preds_before_fusion, record_len)
+        #print(batch_confidence_maps)
+        _, communication_masks, communication_rates = self.naive_communication(batch_confidence_maps, record_len, pairwise_t_matrix)
+        for i in range(len(feature_list)):
+              #print(x.size())
+              #print("communication_rates")
+              #print(communication_rates)
+              feature_list[i] = feature_list[i] * communication_masks
+              communication_masks = F.max_pool2d(communication_masks, kernel_size=2)
+              #print(communication_masks.size())
+        
+        #print("commu", communication_masks[0])
+        #print(feature_list[1][0], feature_list[1][1])
+        
         fused_feature_list = []
         for i, fuse_module in enumerate(self.fusion_net):
             if self.modality_aware_fusion[i]:
@@ -301,7 +439,9 @@ class HeterPointPillarsLiftSplatV2(nn.Module):
                        'dir_preds_single': dir_preds_before_fusion, 
                        'cls_preds': cls_preds,
                        'reg_preds': reg_preds,
-                       'dir_preds': dir_preds}
+                       'dir_preds': dir_preds,
+                       'comm_rates': communication_rates,
+                       'codebook_loss': codebook_loss}
 
 
         return output_dict

@@ -420,7 +420,7 @@ def dist_to_continuous(p_dist, displacement_dist, res, downsample_rate):
     return p_continuous
 
 
-def get_pairwise_transformation_torch(lidar_poses, max_cav, record_len):
+def get_pairwise_transformation_torch(lidar_poses, max_cav, record_len, dof):
     """
     Get pair-wise transformation matrix accross different agents.
     Designed for batch data

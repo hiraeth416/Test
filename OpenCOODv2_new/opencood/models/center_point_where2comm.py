@@ -154,7 +154,6 @@ class CenterPointWhere2comm(nn.Module):
                                             psm_single,
                                             record_len,
                                             pairwise_t_matrix)
-            # fused_feature = self.linear2(F.relu(self.linear1(fused_feature)))
             
             
         # print('fused_feature: ', fused_feature.shape)
@@ -200,7 +199,6 @@ class CenterPointWhere2comm(nn.Module):
         batch_reg = box_preds[..., 0:2]
         # batch_hei = box_preds[..., 2:3] 
         # batch_dim = torch.exp(box_preds[..., 3:6])
-
         h = box_preds[..., 3:4] * self.out_size_factor * self.voxel_size[0]
         w = box_preds[..., 4:5] * self.out_size_factor * self.voxel_size[1]
         l = box_preds[..., 5:6] * self.out_size_factor * self.voxel_size[2]

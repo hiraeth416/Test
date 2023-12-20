@@ -58,8 +58,8 @@ class Communication(nn.Module):
             t_matrix = pairwise_t_matrix[b][:N, :N, :, :]
 
             ori_communication_maps = batch_confidence_maps[b].sigmoid().max(dim=1)[0].unsqueeze(1) # dim1=2 represents the confidence of two anchors [n,1,h,w]
-            print("-------------------comm------------------------")
-            print(ori_communication_maps.shape)
+            #print("-------------------comm------------------------")
+            #print(ori_communication_maps.shape)
             
             
             if self.smooth:
@@ -67,16 +67,18 @@ class Communication(nn.Module):
             else:
                 communication_maps = ori_communication_maps
             # print range
-            print("ori_communication_maps: ", communication_maps.min(), communication_maps.max())
+            #print("ori_communication_maps: ", communication_maps.min(), communication_maps.max())
 
             ones_mask = torch.ones_like(communication_maps).to(communication_maps.device)
             zeros_mask = torch.zeros_like(communication_maps).to(communication_maps.device)
             communication_mask=ones_mask.clone()
 
             if self.solver:
-                print(" in solver ") 
+                #print(" in solver ") 
                 # import ipdb; ipdb.set_trace()
-                ########### warp to ego coordinate ###########
+                # ########### warp to ego coordinate ###########
+                # print("t_matrix: ", t_matrix.shape)
+                # print("communication_maps: ", communication_maps.shape)
                 ego_communication_maps = warp_affine_simple(communication_maps,
                                                 t_matrix[0, :, :, :],
                                                 (H, W))
@@ -123,7 +125,7 @@ class Communication(nn.Module):
             communication_mask = communication_mask_by_conf * communication_mask
 
             diff = (communication_mask_by_conf - communication_mask).abs().sum() / (communication_mask_by_conf.sum()+1e-6)
-            print('diff_ratio: {:.6f}'.format(diff.item()))
+            #print('diff_ratio: {:.6f}'.format(diff.item()))
 
             # import ipdb; ipdb.set_trace()
 

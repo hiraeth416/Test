@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader, Subset
 import numpy as np
 import opencood.hypes_yaml.yaml_utils as yaml_utils
 from opencood.tools import train_utils, inference_utils
-from opencood.data_utils.datasets import build_dataset
+from opencood.data_utils.datasets import build_dataset, build_dataset_latency
 from opencood.utils import eval_utils
 from opencood.visualization import vis_utils, my_vis, simple_vis
 from opencood.utils.common_utils import update_dict
@@ -303,9 +303,9 @@ def main():
     cav_nums = []
     stat = {}
     for i, batch_data in enumerate(data_loader):
-        print(f"{infer_info}_{i}")
         if batch_data is None:
             continue
+        print(f"{infer_info}_{i}")
         cav_num = len(batch_data['ego']['cav_id_list'])
         with torch.no_grad():
             batch_data = train_utils.to_device(batch_data, device)

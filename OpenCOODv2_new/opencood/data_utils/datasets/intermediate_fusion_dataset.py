@@ -17,7 +17,10 @@ from opencood.utils.camera_utils import (
     normalize_img,
     img_to_tensor,
 )
+<<<<<<< HEAD
 from opencood.utils.heter_utils import AgentSelector
+=======
+>>>>>>> origin/lsf
 from opencood.utils.common_utils import merge_features_to_dict
 from opencood.utils.transformation_utils import x1_to_x2, x_to_world, get_pairwise_transformation
 from opencood.utils.pose_utils import add_noise_data_dict
@@ -49,7 +52,10 @@ def getIntermediateFusionDataset(cls):
             self.heterogeneous = False
             if 'heter' in params:
                 self.heterogeneous = True
+<<<<<<< HEAD
                 self.selector = AgentSelector(params['heter'], self.max_cav)
+=======
+>>>>>>> origin/lsf
 
             self.kd_flag = params.get('kd_flag', False)
 
@@ -615,6 +621,7 @@ def getIntermediateFusionDataset(cls):
                 output_dict['ego'].update({
                     "lidar_agent_record": torch.from_numpy(np.concatenate(lidar_agent_list)) # [0,1,1,0,1...]
                 })
+<<<<<<< HEAD
             
             transformation_matrix_torch = \
                 torch.from_numpy(np.identity(4)).float()
@@ -624,6 +631,9 @@ def getIntermediateFusionDataset(cls):
                                         transformation_matrix_torch,
                                         'transformation_matrix_clean':
                                         transformation_matrix_clean_torch,})
+=======
+
+>>>>>>> origin/lsf
             return output_dict
 
         def collate_batch_test(self, batch):
@@ -658,7 +668,11 @@ def getIntermediateFusionDataset(cls):
             return output_dict
 
 
+<<<<<<< HEAD
         def post_process(self, data_dict, output_dict, return_idx=False):
+=======
+        def post_process(self, data_dict, output_dict):
+>>>>>>> origin/lsf
             """
             Process the outputs of the model to 2D/3D bounding box.
 
@@ -679,6 +693,7 @@ def getIntermediateFusionDataset(cls):
             """
             pred_box_tensor, pred_score = \
                 self.post_processor.post_process(data_dict, output_dict)
+<<<<<<< HEAD
 
             if return_idx:
                 gt_box_tensor, gt_idx = self.post_processor.generate_gt_bbx(data_dict, return_idx=True)
@@ -724,6 +739,13 @@ def getIntermediateFusionDataset(cls):
                     break
             return scenario_index
         
+=======
+            gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)
+
+            return pred_box_tensor, pred_score, gt_box_tensor
+
+
+>>>>>>> origin/lsf
     return IntermediateFusionDataset
 
 
