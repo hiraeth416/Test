@@ -159,11 +159,11 @@ class HeterModelBaseline(nn.Module):
             if modality_name not in modality_count_dict:
                 continue
             feature = eval(f"self.encoder_{modality_name}")(data_dict, modality_name)
-            #print("feature.shape", feature.shape)
+            # print("feature.shape", feature.shape)
             feature = eval(f"self.backbone_{modality_name}")({"spatial_features": feature})['spatial_features_2d']
-            #print("feature.shape", feature.shape)
+            # print("feature.shape", feature.shape)
             feature = eval(f"self.shrinker_{modality_name}")(feature)
-            #print("feature.shape", feature.shape)
+            # print("feature.shape", feature.shape)
             modality_feature_dict[modality_name] = feature
 
         """
@@ -213,7 +213,7 @@ class HeterModelBaseline(nn.Module):
                                 'reg_preds_single': reg_preds_before_fusion,
                                 'dir_preds_single': dir_preds_before_fusion})
 
-        #print("heter_feature_2d/shape:", heter_feature_2d.shape)
+        print("heter_feature_2d/shape:", heter_feature_2d.shape)
 
         """
         Feature Fusion (multiscale).

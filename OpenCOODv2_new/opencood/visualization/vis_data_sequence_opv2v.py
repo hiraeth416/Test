@@ -80,9 +80,9 @@ def save_video(output_path):
 if __name__ == '__main__':
     current_path = os.path.dirname(os.path.realpath(__file__))
     hypes = load_yaml(os.path.join(current_path,
-                                    '../hypes_yaml/visualization_opv2v.yaml'))
+                                    '../hypes_yaml/opv2v/visualization_opv2v.yaml'))
     # output_path = "/GPFS/rhome/yifanlu/OpenCOOD/data_vis/opv2v_ego_view_others_pc"
-    output_path = "YOURPATH"
+    output_path = "/root/percp/OpenCOODv2/OpenCOODv2/data_vis/opv2v"
 
     print('Dataset Building')
     opencda_dataset = build_dataset(hypes, visualize=True, train=False)
@@ -94,7 +94,7 @@ if __name__ == '__main__':
                              collate_fn=opencda_dataset.collate_batch_test,
                              shuffle=False,
                              pin_memory=False)
-    vis_gt_box = False
+    vis_gt_box = True
     vis_pred_box = False
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -125,16 +125,17 @@ if __name__ == '__main__':
             cur_image = images[-future_len]
             cur_record_len = record_len[-(history_len + future_len):]
             vis_seq(cur_image, cur_record_len, gt_box2d, gt_box2d_mask, output_path, i)
-        # vis_save_path = os.path.join(output_path, '3d_%05d.png' % i)
-        # simple_vis.visualize(None,
-        #                     gt_box_tensor,
-        #                     batch_data['ego']['origin_lidar'][0],
-        #                     hypes['postprocess']['gt_range'],
-        #                     vis_save_path,
-        #                     method='3d',
-        #                     vis_gt_box = vis_gt_box,
-        #                     vis_pred_box = vis_pred_box,
-        #                     left_hand=False)
+        vis_save_path = os.path.join(output_path, '3d_%05d.png' % i)
+        infer_result = {}
+        infer_result['gt_box_tensor'] = gt_box_tensor
+        simple_vis.visualize(infer_result,
+                            batch_data['ego']['origin_lidar'][0],
+                            hypes['postprocess']['gt_range'],
+                            vis_save_path,
+                            method='3d',
+                            vis_gt_box = vis_gt_box,
+                            vis_pred_box = vis_pred_box,
+                            left_hand=False)
         
         # projected_lidar_list = batch_data['ego']['projected_lidar_list']
 

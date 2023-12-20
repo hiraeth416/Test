@@ -325,7 +325,6 @@ def warp_affine_simple(src, M, dsize,
         align_corners=False):
 
     B, C, H, W = src.size()
-    #print("src", src.shape)
     grid = F.affine_grid(M,
                          [B, C, dsize[0], dsize[1]],
                          align_corners=align_corners).to(src)

@@ -16,7 +16,6 @@ import opencood.hypes_yaml.yaml_utils as yaml_utils
 from opencood.tools import train_utils, inference_utils
 from opencood.data_utils.datasets import build_dataset
 from opencood.utils import eval_utils
-from opencood.utils.common_utils import update_dict
 from opencood.visualization import vis_utils, my_vis, simple_vis
 torch.multiprocessing.set_sharing_strategy('file_system')
 
@@ -42,7 +41,7 @@ def test_parser():
     parser.add_argument('--save_track', action='store_true',
                         help='whether to save prediction and gt result for track'
                              'in npy file')
-    parser.add_argument('--range', type=str, default="140.8,40.0",
+    parser.add_argument('--range', type=str, default="140.8,40",
                         help="detection range is [-140.8,+140.8m, -40m, +40m]")
     parser.add_argument('--modal', type=int, default=0,
                         help='used in heterogeneous setting, 0 lidaronly, 1 camonly, 2 ego_lidar_other_cam, 3 ego_cam_other_lidar')
@@ -82,88 +81,33 @@ def main():
     else:
         pass
 
-    if "OPV2V" in hypes['test_dir'] or "v2xsim" in hypes['test_dir']:
+    if 'heter' in hypes:
         if opt.modal == 0:
-            hypes['heter']['mapping_dict']['m1'] = 'm1'
-            hypes['heter']['mapping_dict']['m2'] = 'm1'
-            hypes['heter']['mapping_dict']['m3'] = 'm1'
-            hypes['heter']['mapping_dict']['m4'] = 'm1'
-            hypes['heter']['ego_modality'] = 'm1'
-            hypes['model']['args']['ego_modality'] = 'm1'
+            hypes['heter']['lidar_ratio'] = 1
+            hypes['heter']['ego_modality'] = 'lidar'
             opt.note += '_lidaronly' 
 
         if opt.modal == 1:
-            hypes['heter']['mapping_dict']['m1'] = 'm2'
-            hypes['heter']['mapping_dict']['m2'] = 'm2'
-            hypes['heter']['mapping_dict']['m3'] = 'm2'
-            hypes['heter']['mapping_dict']['m4'] = 'm2'
-            hypes['heter']['ego_modality'] = 'm2'
-            hypes['model']['args']['ego_modality'] = 'm2'
+            hypes['heter']['lidar_ratio'] = 0
+            hypes['heter']['ego_modality'] = 'camera'
             opt.note += '_camonly' 
-
+            
         if opt.modal == 2:
-            hypes['heter']['mapping_dict']['m1'] = 'm1'
-            hypes['heter']['mapping_dict']['m2'] = 'm2'
-            hypes['heter']['mapping_dict']['m3'] = 'm2'
-            hypes['heter']['mapping_dict']['m4'] = 'm2'
-            hypes['heter']['ego_modality'] = 'm1'
-            hypes['model']['args']['ego_modality'] = 'm1'
+            hypes['heter']['lidar_ratio'] = 0
+            hypes['heter']['ego_modality'] = 'lidar'
             opt.note += 'ego_lidar_other_cam'
 
         if opt.modal == 3:
-            hypes['heter']['mapping_dict']['m1'] = 'm2'
-            hypes['heter']['mapping_dict']['m2'] = 'm1'
-            hypes['heter']['mapping_dict']['m3'] = 'm1'
-            hypes['heter']['mapping_dict']['m4'] = 'm1'
-            hypes['heter']['ego_modality'] = 'm2'
-            hypes['model']['args']['ego_modality'] = 'm2'
+            hypes['heter']['lidar_ratio'] = 1
+            hypes['heter']['ego_modality'] = 'camera'
             opt.note += '_ego_cam_other_lidar'
 
-        if opt.modal == 4:
-            hypes['heter']['mapping_dict']['m1'] = 'm1'
-            hypes['heter']['mapping_dict']['m2'] = 'm1'
-            hypes['heter']['mapping_dict']['m3'] = 'm2'
-            hypes['heter']['mapping_dict']['m4'] = 'm2'
-            hypes['heter']['ego_modality'] = 'm1&m2'
-            opt.note += 'ego_random_ratio0.5'
-    else:
-        if opt.modal == 0:
-            hypes['heter']['mapping_dict']['m1'] = 'm1'
-            hypes['heter']['mapping_dict']['m2'] = 'm1'
-            hypes['heter']['ego_modality'] = 'm1'
-            opt.note += '_lidaronly' 
-
-        if opt.modal == 1:
-            hypes['heter']['mapping_dict']['m1'] = 'm2'
-            hypes['heter']['mapping_dict']['m2'] = 'm2'
-            hypes['heter']['ego_modality'] = 'm2'
-            opt.note += '_camonly' 
-
-        if opt.modal == 2:
-            hypes['heter']['mapping_dict']['m1'] = 'm1'
-            hypes['heter']['mapping_dict']['m2'] = 'm2'
-            hypes['heter']['ego_modality'] = 'm1'
-            opt.note += 'ego_lidar_other_cam'
-
-        if opt.modal == 3:
-            hypes['heter']['mapping_dict']['m1'] = 'm2'
-            hypes['heter']['mapping_dict']['m2'] = 'm1'
-            hypes['heter']['ego_modality'] = 'm2'
-            opt.note += '_ego_cam_other_lidar'
-
-        if opt.modal == 4:
-            hypes['heter']['mapping_dict']['m1'] = 'm1'
-            hypes['heter']['mapping_dict']['m2'] = 'm2'
-            hypes['heter']['ego_modality'] = 'm1&m2'
-            opt.note += 'ego_random_ratio0.5'
-
-        x_min, x_max = -eval(opt.range.split(',')[0]), eval(opt.range.split(',')[0])
-        y_min, y_max = -eval(opt.range.split(',')[1]), eval(opt.range.split(',')[1])
+        x_min, x_max = -102.4, 102.4
+        y_min, y_max = -102.4, 102.4
         opt.note += f"_{x_max}_{y_max}"
-        #hypes['fusion']['args']['grid_conf']['xbound'][0] = x_min
-        #hypes['fusion']['args']['grid_conf']['xbound'] = [x_min, x_max, hypes['fusion']['args']['grid_conf']['xbound'][2]]
-        #hypes['fusion']['args']['grid_conf']['ybound'] = [y_min, y_max, hypes['fusion']['args']['grid_conf']['ybound'][2]]
-        #hypes['model']['args']['grid_conf'] = hypes['fusion']['args']['grid_conf']
+        hypes['fusion']['args']['grid_conf']['xbound'] = [x_min, x_max, hypes['fusion']['args']['grid_conf']['xbound'][2]]
+        hypes['fusion']['args']['grid_conf']['ybound'] = [y_min, y_max, hypes['fusion']['args']['grid_conf']['ybound'][2]]
+        hypes['model']['args']['grid_conf'] = hypes['fusion']['args']['grid_conf']
 
         new_cav_range = [x_min, y_min, hypes['postprocess']['anchor_args']['cav_lidar_range'][2], \
                             x_max, y_max, hypes['postprocess']['anchor_args']['cav_lidar_range'][5]]
@@ -171,11 +115,7 @@ def main():
         hypes['preprocess']['cav_lidar_range'] =  new_cav_range
         hypes['postprocess']['anchor_args']['cav_lidar_range'] = new_cav_range
         hypes['postprocess']['gt_range'] = new_cav_range
-        hypes = update_dict(hypes, {
-            "cav_lidar_range": new_cav_range,
-            "lidar_range": new_cav_range,
-            "gt_range": new_cav_range
-        })
+        hypes['model']['args']['lidar_args']['lidar_range'] = new_cav_range
         if 'camera_mask_args' in hypes['model']['args']:
             hypes['model']['args']['camera_mask_args']['cav_lidar_range'] = new_cav_range
 
@@ -231,14 +171,14 @@ def main():
     
 
     # add noise to pose.
-    #pos_std_list = [0, 0.2, 0.4, 0.6]
-    #rot_std_list = [0, 0.2, 0.4, 0.6]
+    pos_std_list = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
+    rot_std_list = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
     pos_mean_list = [0, 0, 0, 0, 0, 0, 0]
     rot_mean_list = [0, 0, 0, 0, 0, 0, 0]
     # pos_std_list = [opt.noise]
     # rot_std_list = [opt.noise]
-    pos_std_list = [0.8, 1.0, 1.5]
-    rot_std_list = [0.8, 1.0, 1.5]
+    # pos_std_list = [0]
+    # rot_std_list = [0]
     # pos_mean_list = [0]
     # rot_mean_list = [0]
 
@@ -290,7 +230,7 @@ def main():
                         0.7: {'tp': [], 'fp': [], 'gt': 0, 'score': []}}
 
             
-            infer_info = opt.model_name + '_' + opt.fusion_method + '_' + opt.note + '_noise_' +str(pos_std)
+            infer_info = opt.model_name + '_' + opt.fusion_method + opt.note + '_noise_' +str(pos_std)
 
             scene_idxs = []
             comm_rates = []
@@ -453,7 +393,7 @@ def main():
             if not os.path.exists(detection_path):
                 os.makedirs(detection_path)
                 
-            with open(os.path.join(opt.model_dir,'detection_noise', '{}_noise.txt'.format(opt.result_name)), 'a+') as f:
+            with open(os.path.join(opt.model_dir,'detection_noise', '{}_noise.txt'.format(opt.model_name)), 'a+') as f:
                 f.write('ap30: {:.04f} ap50: {:.04f} ap70: {:.04f} comm_thre: {:.04f} comm_rate: {:.06f} pos_std: {:.04f} rot_std: {:.04f}\n'.format(ap30, ap50, ap70, opt.comm_thre, comm_rates, pos_std, rot_std))
             
             AP30.append(ap30)

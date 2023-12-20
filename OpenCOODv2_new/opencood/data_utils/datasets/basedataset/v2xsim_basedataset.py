@@ -7,7 +7,7 @@ from abc import abstractmethod
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-
+import copy 
 from opencood.data_utils.augmentor.data_augmentor import DataAugmentor
 from opencood.utils.common_utils import read_json
 from opencood.utils.transformation_utils import tfm_to_pose
@@ -31,18 +31,13 @@ class V2XSIMBaseDataset(Dataset):
 
         self.pre_processor = build_preprocessor(params["preprocess"], train)
         self.post_processor = build_postprocessor(params["postprocess"], train)
-        if 'data_augment' in params: # late and early
-            self.data_augmentor = DataAugmentor(params['data_augment'], train)
-        else: # intermediate
-            self.data_augmentor = None
+        self.data_augmentor = DataAugmentor(params['data_augment'], train)
 
         if self.train:
             root_dir = params['root_dir']
         else:
             root_dir = params['validate_dir']
         self.root_dir = root_dir
-
-        print("Dataset dir:", root_dir)
 
         if 'train_params' not in params or \
                 'max_cav' not in params['train_params']:
@@ -76,18 +71,44 @@ class V2XSIMBaseDataset(Dataset):
         # TODO param: one as ego or all as ego?
         self.ego_mode = 'one'  # "all"
 
+        self.scenes_info = OrderedDict()
+
         self.reinitialize()
+        print(params['time_delay'])
+        # NOTE(GJH):Add time delay
+        if 'time_delay' in params:          # number of time delay
+            self.time_delay = params['time_delay'] 
+            print("time delay: ", self.time_delay)
+            self.initializeDelay()
+        else:
+            self.time_delay = 0
 
     def reinitialize(self):
+        scene_idx = -1
+        last_scene_idx = -1
+        last_scene_info_idx = -1
         self.scene_database = OrderedDict()
         if self.ego_mode == 'one':
-            self.len_record = len(self.dataset_info_pkl)
+            self.len_record = []
+            self.len_data = len(self.dataset_info_pkl)
         else:
             raise NotImplementedError(self.ego_mode)
 
         for i, scene_info in enumerate(self.dataset_info_pkl):
             self.scene_database.update({i: OrderedDict()})
             cav_num = scene_info['agent_num']
+            scene_idx = scene_info['lidar_path_1'].split('/')[-1].split('.')[0].split('_')[1]
+            scene_info_idx = int(scene_info['lidar_path_1'].split('/')[-1].split('.')[0].split('_')[2])
+
+            if last_scene_idx != scene_idx:
+                self.scenes_info[scene_idx] = OrderedDict()
+                self.scenes_info[scene_idx]["min_idx"] = scene_info_idx
+                if last_scene_idx != -1:
+                    self.scenes_info[last_scene_idx]["max_idx"] = last_scene_info_idx
+                last_scene_idx = scene_idx
+            else:
+                pass
+
             assert cav_num > 0
 
             if self.train:
@@ -104,11 +125,14 @@ class V2XSIMBaseDataset(Dataset):
                 self.scene_database[i][cav_id] = OrderedDict()
 
                 self.scene_database[i][cav_id]['ego'] = j==0
+                
+                self.scene_database[i][cav_id]['scene_idx'] = scene_idx # scene_idx is the same for all cavs in one scene
+                self.scene_database[i][cav_id]['info_idx'] = scene_info_idx
 
                 self.scene_database[i][cav_id]['lidar'] = scene_info[f'lidar_path_{cav_id}']
                 # need to delete this line is running in /GPFS
                 self.scene_database[i][cav_id]['lidar'] = \
-                    self.scene_database[i][cav_id]['lidar'].replace("/GPFS/rhome/yifanlu/workspace/dataset/v2xsim2-complete", "dataset/V2X-Sim-2.0")
+                    self.scene_database[i][cav_id]['lidar'].replace("/GPFS/rhome/yifanlu/workspace/dataset/v2xsim2-complete", "/remote-home/share/V2X-Sim-2.0")
 
                 self.scene_database[i][cav_id]['params'] = OrderedDict()
                 self.scene_database[i][cav_id][
@@ -121,13 +145,104 @@ class V2XSIMBaseDataset(Dataset):
                 self.scene_database[i][cav_id]['params'][
                     'object_ids'] = scene_info[f'labels_{cav_id}'][
                         'gt_object_ids'].tolist()
+            last_scene_info_idx = scene_info_idx
+        self.scenes_info[scene_idx]["max_idx"] = last_scene_info_idx
+
+    def initializeDelay(self):
+        """
+        Initialize the time delay.
+        """
+        scene = None
+        scene_delay = None
+        scene_database_delay = OrderedDict()
+        max_len = len(self.scene_database)
+        cur_idx = 0
+        skip_num = 0
+        last_scene_idx = 1
+        first_entry = True
+        # print("Len of cur dataset: ", max_len)
+        # log = open("./log_file.txt",'w')
+        change_scene = True
+        for idx, scene_info in enumerate(self.scene_database):
+            idx_delay = int(idx - self.time_delay)
+            # idx_delay = idx - 5 + 1 - 1
+            # print(idx_delay)
+            if idx_delay < 0 or idx_delay > max_len-1:
+                continue
+            scene = copy.deepcopy(self.scene_database[idx])
+            scene_delay = copy.deepcopy(self.scene_database[idx_delay])
+            # log.write("scene " + str(idx) + " " + scene[1]['lidar'] + "\n")
+            # log.write("scene_delay "+ str(idx_delay) + " " + scene_delay[1]['lidar']+"\n")
+            scene_idx = scene[1]["scene_idx"]
+            scene_delay_idx = scene_delay[1]["scene_idx"]
+            if scene_idx != last_scene_idx and not first_entry:
+                self.len_record.append(cur_idx)
+            first_entry = False
+            if scene_idx != scene_delay_idx:
+                first_entry = True
+                # skip_num += 1
+                # num_ego_timestamps = cur_idx - last_scene_info_idx
+                # if change_scene:
+                #     self.len_record.append(cur_idx+1)
+                #     change_scene = False
+                continue    # if the scene_idx is different, then the time delay is too large, so we skip it.
+            else:
+                # change_scene = True
+                scene_database_delay[cur_idx] = OrderedDict()
+                scene_database_delay[cur_idx] = copy.deepcopy(scene)
+                for cav_id, cav_content in scene_delay.items():
+                    if scene_database_delay[cur_idx][cav_id]['ego']: # ego
+                        scene_database_delay[cur_idx][cav_id]['lidar'] = copy.deepcopy(scene[cav_id]['lidar'])
+                        scene_database_delay[cur_idx][cav_id]['params']['lidar_pose'] = copy.deepcopy(scene[cav_id]['params']['lidar_pose'])
+                    else:
+                        scene_database_delay[cur_idx][cav_id]['lidar'] = copy.deepcopy(scene_delay[cav_id]['lidar'])
+                        scene_database_delay[cur_idx][cav_id]['params']['lidar_pose'] = copy.deepcopy(scene_delay[cav_id]['params']['lidar_pose'])
+                        # scene_database_delay[cur_idx][cav_id]['params']['lidar_pose_delay'] = copy.deepcopy(scene_delay[cav_id]['params']['lidar_pose'])
+                    # log.write(self.scene_database[idx_delay][1]['lidar']+"\n")
+                    # log.write(str(idx_delay)+"\n")
+
+                    # scene_database_delay[cur_idx][cav_id]['params']['lidar_pose'] = scene_delay[cav_id]['params']['lidar_pose']
+                last_scene_idx = scene_idx
+                cur_idx += 1
+        self.len_record.append(cur_idx)
+        # print("Skip scene num: ", skip_num)
+        # print("Len of dataset after delay: ", len(scene_database_delay))
+        self.scene_database = scene_database_delay
+        self.len_data = len(self.scene_database)
+        print("self.len_record: ",self.len_record)
+            
 
     def __len__(self) -> int:
-        return self.len_record
+        return self.len_data
 
     @abstractmethod
     def __getitem__(self, index):
         pass
+
+
+    def is_idx_valid(self, scene_idx, info_idx):
+        """
+        Check if the index is valid.
+
+        Parameters
+        ----------
+        scene_idx : int
+            Scene index.
+
+        info_idx : int
+            Info index.
+
+        Returns
+        -------
+        bool
+            True if the index is valid.
+        """
+        if scene_idx not in self.scenes_info:
+            return False
+        if info_idx < self.scenes_info[scene_idx]["min_idx"] or \
+                info_idx > self.scenes_info[scene_idx]["max_idx"]:
+            return False
+        return True
 
     def retrieve_base_data(self, idx):
         """
@@ -164,7 +279,9 @@ class V2XSIMBaseDataset(Dataset):
         #     'cav_id1': ,
         #     ...
         # }
+        # NOTE(GJH): If the cav_id is too large, it means that the cav_id is not in the current time step, so we skip it.
         scene = self.scene_database[idx]
+
         for cav_id, cav_content in scene.items():
             data[f'{cav_id}'] = OrderedDict()
             data[f'{cav_id}']['ego'] = cav_content['ego']

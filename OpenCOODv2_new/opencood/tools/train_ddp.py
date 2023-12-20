@@ -13,6 +13,7 @@ from opencood.data_utils.datasets import build_dataset
 from opencood.tools import multi_gpu_utils
 from icecream import ic
 import tqdm
+import math
 
 # CUDA_VISIBLE_DEVICES=0,1,2,3 python -m torch.distributed.launch --nproc_per_node=4 --use_env opencood/tools/train_ddp.py --hypes_yaml ${CONFIG_FILE} [--model_dir  ${CHECKPOINT_FOLDER}
 
@@ -39,6 +40,7 @@ def main():
 
     print('Dataset Building')
     opencood_train_dataset = build_dataset(hypes, visualize=False, train=True)
+    
     opencood_validate_dataset = build_dataset(hypes,
                                               visualize=False,
                                               train=False)
@@ -98,6 +100,11 @@ def main():
     # we assume gpu is necessary
     if torch.cuda.is_available():
         model.to(device)
+    print('---------------------------------- Training Params ----------------------------------')
+    for name, param in model.named_parameters():
+      if param.requires_grad:
+          print(name)
+    print('---------------------------------- Training Params ----------------------------------')
         
     # ddp setting
     model_without_ddp = model
@@ -106,7 +113,7 @@ def main():
         model = \
             torch.nn.parallel.DistributedDataParallel(model,
                                                       device_ids=[opt.gpu],
-                                                      find_unused_parameters=True) # True
+                                                      find_unused_parameters=True)
         model_without_ddp = model.module
 
 
@@ -135,15 +142,12 @@ def main():
             print('learning rate %f' % param_group["lr"])
         if opt.distributed:
             sampler_train.set_epoch(epoch)
-        # the model will be evaluation mode during validation
-        model.train()
-        try: # heter_model stage2
-            model_without_ddp.model_train_init()
-        except:
-            print("No model_train_init function")
+
         for i, batch_data in enumerate(train_loader):
             if batch_data is None or batch_data['ego']['object_bbx_mask'].sum()==0:
                 continue
+            # the model will be evaluation mode during validation
+            model.train()
             model.zero_grad()
             optimizer.zero_grad()
             batch_data = train_utils.to_device(batch_data, device)
@@ -161,10 +165,10 @@ def main():
 
             if supervise_single_flag:
                 if not opt.half:
-                    final_loss += criterion(ouput_dict, batch_data['ego']['label_dict_single'], suffix="_single") * hypes['train_params'].get("single_weight", 1)
+                    final_loss += criterion(ouput_dict, batch_data['ego']['label_dict_single'], suffix="_single")
                 else:
                     with torch.cuda.amp.autocast():
-                        final_loss += criterion(ouput_dict, batch_data['ego']['label_dict_single'], suffix="_single") * hypes['train_params'].get("single_weight", 1)
+                        final_loss += criterion(ouput_dict, batch_data['ego']['label_dict_single'], suffix="_single")
                 criterion.logging(epoch, i, len(train_loader), writer, suffix="_single")
 
             if not opt.half:
@@ -176,7 +180,7 @@ def main():
                 scaler.update()
 
 
-            # torch.cuda.empty_cache()
+            torch.cuda.empty_cache()
 
         if epoch % hypes['train_params']['eval_freq'] == 0:
             valid_ave_loss = []
@@ -237,7 +241,7 @@ def main():
             ascending_idx = np.argsort(bestval_model_epoch_list)
             for idx in ascending_idx:
                 if idx != (len(bestval_model_list) - 1):
-                    os.remove(bestval_model_list[idx])
+                    os.remove(bestval_model_epoch_list[idx])
 
         if run_test:
             fusion_method = opt.fusion_method
@@ -245,6 +249,12 @@ def main():
             print(f"Running command: {cmd}")
             os.system(cmd)
 
+            # infer other modality setting
+            if 'heter' in hypes:
+                for modal in [1,2,3]:
+                    cmd = f"python opencood/tools/inference.py --model_dir {saved_path} --fusion_method {fusion_method} --modal {modal}"
+                    print(f"Running command: {cmd}")
+                    os.system(cmd)
 
 if __name__ == '__main__':
     main()

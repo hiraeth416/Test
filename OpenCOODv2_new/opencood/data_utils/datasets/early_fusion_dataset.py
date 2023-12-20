@@ -14,6 +14,7 @@ from opencood.utils.pcd_utils import \
     mask_points_by_range, mask_ego_points, shuffle_points, \
     downsample_lidar_minimum
 from opencood.utils.transformation_utils import x1_to_x2
+from opencood.utils.heter_utils import AgentSelector
 
 
 def getEarlyFusionDataset(cls):
@@ -35,6 +36,7 @@ def getEarlyFusionDataset(cls):
             self.heterogeneous = False
             if 'heter' in params:
                 self.heterogeneous = True
+                self.selector = AgentSelector(params['heter'], self.max_cav)
 
         def __getitem__(self, idx):
             base_data_dict = self.retrieve_base_data(idx)
@@ -58,6 +60,7 @@ def getEarlyFusionDataset(cls):
             projected_lidar_stack = []
             object_stack = []
             object_id_stack = []
+            lidar_pose_list = []
 
             # loop over all CAVs to process information
             for cav_id, selected_cav_base in base_data_dict.items():
@@ -71,6 +74,8 @@ def getEarlyFusionDataset(cls):
                 if distance > self.params['comm_range']:
                     continue
 
+                lidar_pose_list.append(selected_cav_base['params']['lidar_pose']) # 6dof pose
+
                 selected_cav_processed = self.get_item_single_car(
                     selected_cav_base,
                     ego_lidar_pose)
@@ -81,6 +86,7 @@ def getEarlyFusionDataset(cls):
                 object_stack.append(selected_cav_processed['object_bbx_center'])
                 object_id_stack += selected_cav_processed['object_ids']
 
+            lidar_poses = np.array(lidar_pose_list).reshape(-1, 6)  # [N_cav, 6]
             # exclude all repetitive objects
             unique_indices = \
                 [object_id_stack.index(x) for x in set(object_id_stack)]
@@ -140,7 +146,8 @@ def getEarlyFusionDataset(cls):
                 'object_ids': [object_id_stack[i] for i in unique_indices],
                 'anchor_box': anchor_box,
                 'processed_lidar': lidar_dict,
-                'label_dict': label_dict})
+                'label_dict': label_dict,
+                'lidar_poses': lidar_poses})
 
             if self.visualize:
                 processed_data_dict['ego'].update({'origin_lidar':
@@ -222,6 +229,8 @@ def getEarlyFusionDataset(cls):
                     torch.from_numpy(np.array([cav_content['object_bbx_mask']]))
                 object_ids = cav_content['object_ids']
 
+                lidar_pose = torch.from_numpy(np.array(cav_content['lidar_poses'])) # ego_dict['lidar_pose'] is np.ndarray [N,6]
+
                 # the anchor box is the same for all bounding boxes usually, thus
                 # we don't need the batch dimension.
                 if cav_content['anchor_box'] is not None:
@@ -252,7 +261,8 @@ def getEarlyFusionDataset(cls):
                                             'label_dict': label_torch_dict,
                                             'object_ids': object_ids,
                                             'transformation_matrix': transformation_matrix_torch,
-                                            'transformation_matrix_clean': transformation_matrix_clean_torch})
+                                            'transformation_matrix_clean': transformation_matrix_clean_torch,
+                                            'lidar_pose': lidar_pose})
 
                 if self.visualize:
                     origin_lidar = \
@@ -275,6 +285,7 @@ def getEarlyFusionDataset(cls):
             # used to record different scenario
             label_dict_list = []
             origin_lidar = []
+            lidar_pose_list = []
             
             # heterogeneous
             lidar_agent_list = []
@@ -293,6 +304,7 @@ def getEarlyFusionDataset(cls):
                 object_bbx_center.append(ego_dict['object_bbx_center'])
                 object_bbx_mask.append(ego_dict['object_bbx_mask'])
                 object_ids.append(ego_dict['object_ids'])
+                lidar_pose_list.append(ego_dict['lidar_poses']) # ego_dict['lidar_pose'] is np.ndarray [N,6]
                 if self.load_lidar_file:
                     processed_lidar_list.append(ego_dict['processed_lidar'])
                 if self.load_camera_file:
@@ -316,7 +328,8 @@ def getEarlyFusionDataset(cls):
             # convert to numpy, (B, max_num, 7)
             object_bbx_center = torch.from_numpy(np.array(object_bbx_center))
             object_bbx_mask = torch.from_numpy(np.array(object_bbx_mask))
-
+            lidar_pose = torch.from_numpy(np.concatenate(lidar_pose_list, axis=0))
+            
             if self.load_lidar_file:
                 merged_feature_dict = merge_features_to_dict(processed_lidar_list)
 
@@ -361,7 +374,8 @@ def getEarlyFusionDataset(cls):
             output_dict['ego'].update({'object_bbx_center': object_bbx_center,
                                     'object_bbx_mask': object_bbx_mask,
                                     'label_dict': label_torch_dict,
-                                    'object_ids': object_ids[0]})
+                                    'object_ids': object_ids[0],
+                                    'lidar_pose': lidar_pose})
 
 
             if self.visualize:
@@ -385,7 +399,7 @@ def getEarlyFusionDataset(cls):
 
             return output_dict
 
-        def post_process(self, data_dict, output_dict):
+        def post_process(self, data_dict, output_dict, return_idx=False):
             """
             Process the outputs of the model to 2D/3D bounding box.
 
@@ -406,9 +420,21 @@ def getEarlyFusionDataset(cls):
             """
             pred_box_tensor, pred_score = \
                 self.post_processor.post_process(data_dict, output_dict)
-            gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)
+            
+            if return_idx:
+                gt_box_tensor, gt_idx = self.post_processor.generate_gt_bbx(data_dict, return_idx=True)
+                return pred_box_tensor, pred_score, gt_box_tensor, gt_idx
+            else:
+                gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)
+                return pred_box_tensor, pred_score, gt_box_tensor
 
-            return pred_box_tensor, pred_score, gt_box_tensor
+        def retrieve_scene_idx(self, idx):
+            scenario_index = 0
+            for i, ele in enumerate(self.len_record):
+                if idx < ele:
+                    scenario_index = i
+                    break
+            return scenario_index
 
     return EarlyFusionDataset
 

@@ -62,10 +62,8 @@ def merge_features_to_dict(processed_feature_list, merge=None):
     merged_feature_dict: dict
         key: feature names, value: list of features.
     """
-
     if len(processed_feature_list) == 0:
         return None
-
     merged_feature_dict = OrderedDict()
 
     for i in range(len(processed_feature_list)):

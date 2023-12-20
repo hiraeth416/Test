@@ -231,8 +231,7 @@ class HeterModelSharedhead(nn.Module):
 
     def forward(self, data_dict):
         output_dict = {}
-        agent_modality_list = data_dict['agent_modality_list'] 
-        #print(agent_modality_list)
+        agent_modality_list = data_dict['agent_modality_list']
         t_matrix = normalize_pairwise_tfm(data_dict['pairwise_t_matrix'], self.H, self.W, self.fake_voxel_size)
         pairwise_t_matrix = data_dict['pairwise_t_matrix']
         record_len = data_dict['record_len'] 
@@ -364,11 +363,11 @@ class HeterModelSharedhead(nn.Module):
         '''
         
         N, C, H, W = heter_feature_2d.shape
-        #print("heter_feature_2d_shape: ", heter_feature_2d.shape)
+        # print("heter_feature_2d_shape: ", heter_feature_2d.shape)
         # import pdb
         # pdb.set_trace()
         if self.multi_channel_compressor_flag:
-            #print("------------Codebook information------------")
+            # print("------------Codebook information------------")
             heter_feature_2d_gt = heter_feature_2d.clone()
             heter_feature_2d = heter_feature_2d.permute(0, 2, 3, 1).contiguous().view(-1, C)
             heter_feature_2d, _, _, codebook_loss = self.multi_channel_compressor(heter_feature_2d)
@@ -385,11 +384,12 @@ class HeterModelSharedhead(nn.Module):
                 heter_feature_2d[shape_num] = heter_feature_2d_gt_split[index][0]
                 shape_num = shape_num + heter_feature_2d_gt_split[index].shape[0]
                 
-            #print("heter_feature_2d_shape: ", heter_feature_2d.shape)
             output_dict.update({'codebook_loss': codebook_loss})
-            #print('codebook_loss', codebook_loss)
-            #print("------------Codebook information------------")
+            # print('codebook_loss', codebook_loss)
+            # print("------------Codebook information------------")
 
+        cls_preds_after_codebook = self.cls_head_single(heter_feature_2d)
+        cls_preds_after_codebook[0]=cls_preds_before_fusion[0]
         """
         Feature Fusion (multiscale).
 
@@ -400,13 +400,13 @@ class HeterModelSharedhead(nn.Module):
         for i in range(1, len(self.fusion_net)):
             heter_feature_2d = self.backbone.get_layer_i_feature(heter_feature_2d, layer_i=i)
             feature_list.append(heter_feature_2d)
-
-        batch_confidence_maps = self.regroup(cls_preds_before_fusion, record_len)
+        
+        batch_confidence_maps = self.regroup(cls_preds_after_codebook, record_len)
 
         
         #print('confidencemap:{}'.format(batch_confidence_maps[0].size()))
         #print("fusion2")
-        _, communication_masks, communication_rates = self.naive_communication(batch_confidence_maps, record_len, pairwise_t_matrix)
+        _, communication_masks, communication_rates = self.naive_communication(batch_confidence_maps, record_len, t_matrix)
         for i in range(len(feature_list)):
               #print(x.size())
               feature_list[i] = feature_list[i] * communication_masks
@@ -415,27 +415,28 @@ class HeterModelSharedhead(nn.Module):
         for i, fuse_module in enumerate(self.fusion_net):
             fused_feature_list.append(fuse_module(feature_list[i], record_len, t_matrix))
         fused_feature = self.backbone.decode_multiscale_feature(fused_feature_list)
+        
 
         if self.shrink_flag:
             fused_feature = self.shrink_conv(fused_feature)
 
         cls_preds = self.cls_head(fused_feature)
-        #print("cls_preds", cls_preds.shape)
         reg_preds = self.reg_head(fused_feature)
-        #print("reg_preds", reg_preds.shape)
         dir_preds = self.dir_head(fused_feature)
-        #print("dir_preds", dir_preds.shape)
+
+       
 
         output_dict.update({'cls_preds': cls_preds,
                             'reg_preds': reg_preds,
                             'dir_preds': dir_preds,
                             'comm_rates': communication_rates})
-
+        # print("comm_rates",output_dict['comm_rates'])
         return output_dict
+
 
     def single_forward(self, data_dict):
         output_dict = {}
-        #print("single_forward")
+        print("single_forward")
         agent_modality_list = data_dict['agent_modality_list']
         t_matrix = normalize_pairwise_tfm(data_dict['pairwise_t_matrix'], self.H, self.W, self.fake_voxel_size)
         
@@ -579,5 +580,6 @@ class HeterModelSharedhead(nn.Module):
                             'reg_preds': reg_preds_before_fusion[i].unsqueeze(0),
                             'dir_preds': dir_preds_before_fusion[i].unsqueeze(0)})
             output_dict.update({cav_id: cav_dict})
+        print("output_dict: ", output_dict.keys())
         
         return output_dict

@@ -114,7 +114,7 @@ def main():
             final_loss = criterion(ouput_dict, batch_data['ego']['label_dict'])
             criterion.logging(epoch, i, len(train_loader))
             if supervise_single_flag:
-                final_loss += criterion(ouput_dict, batch_data['ego']['label_dict_single'], suffix="_single") * hypes['train_params'].get("single_weight", 1)
+                final_loss += criterion(ouput_dict, batch_data['ego']['label_dict_single'], suffix="_single")
                 criterion.logging(epoch, i, len(train_loader), suffix="_single")
             # back-propagation
             final_loss.backward()

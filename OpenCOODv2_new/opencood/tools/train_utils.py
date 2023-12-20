@@ -26,32 +26,6 @@ def backup_script(full_path, folders_to_save=["models", "data_utils", "utils", "
         source_folder = os.path.join(current_path, f'../{folder_name}')
         shutil.copytree(source_folder, ttarget_folder)
 
-def check_missing_key(model_state_dict, ckpt_state_dict):
-    checkpoint_keys = set(ckpt_state_dict.keys())
-    model_keys = set(model_state_dict.keys())
-
-    missing_keys = model_keys - checkpoint_keys
-    extra_keys = checkpoint_keys - model_keys
-
-    missing_key_modules = set([keyname.split('.')[0] for keyname in missing_keys])
-    extra_key_modules = set([keyname.split('.')[0] for keyname in extra_keys])
-
-    print("------ Loading Checkpoint ------")
-    if len(missing_key_modules) == 0 and len(extra_key_modules) ==0:
-        return
-
-    print("Missing keys from ckpt:")
-    print(*missing_key_modules,sep='\n',end='\n\n')
-    # print(*missing_keys,sep='\n',end='\n\n')
-
-    print("Extra keys from ckpt:")
-    print(*extra_key_modules,sep='\n',end='\n\n')
-    # print(*extra_keys,sep='\n',end='\n\n')
-
-    print("You can go to tools/train_utils.py to print the full missing key name!")
-    print("--------------------------------")
-
-
 def load_saved_model(saved_path, model):
     """
     Load saved model if exiseted
@@ -87,18 +61,36 @@ def load_saved_model(saved_path, model):
         assert len(file_list) == 1
         print("resuming best validation model at epoch %d" % \
                 eval(file_list[0].split("/")[-1].rstrip(".pth").lstrip("net_epoch_bestval_at")))
-        loaded_state_dict = torch.load(file_list[0] , map_location='cpu')
-        check_missing_key(model.state_dict(), loaded_state_dict)
-        model.load_state_dict(loaded_state_dict, strict=False)
+        ### for load part of the pretrained model ###
+        state_dict = torch.load(file_list[0] , map_location='cpu')
+        model_state_dict = model.state_dict()
+        msg = 'If you see this, your model does not fully load the ' + \
+              'pre-trained weight. Please make sure ' + \
+              'you have correctly specified --arch xxx ' + \
+              'or set the correct --num_classes for your own dataset.'
+        for k in state_dict:
+            if k in model_state_dict:
+                if state_dict[k].shape != model_state_dict[k].shape:
+                    print('Skip loading parameter {}, required shape{}, ' \
+                          'loaded shape{}. {}'.format(
+                        k, model_state_dict[k].shape, state_dict[k].shape, msg))
+                    state_dict[k] = model_state_dict[k]
+            else:
+                print('Drop parameter {}.'.format(k) + msg)
+        for k in model_state_dict:
+            if not (k in state_dict):
+                print('No param {}.'.format(k) + msg)
+                state_dict[k] = model_state_dict[k]
+        #############################################
+        model.load_state_dict(state_dict, strict=False)
         return eval(file_list[0].split("/")[-1].rstrip(".pth").lstrip("net_epoch_bestval_at")), model
 
     initial_epoch = findLastCheckpoint(saved_path)
     if initial_epoch > 0:
         print('resuming by loading epoch %d' % initial_epoch)
-        loaded_state_dict = torch.load(os.path.join(saved_path,
-                         'net_epoch%d.pth' % initial_epoch), map_location='cpu')
-        check_missing_key(model.state_dict(), loaded_state_dict)
-        model.load_state_dict(loaded_state_dict, strict=False)
+        model.load_state_dict(torch.load(
+            os.path.join(saved_path,
+                         'net_epoch%d.pth' % initial_epoch), map_location='cpu'), strict=False)
 
     return initial_epoch, model
 
@@ -119,7 +111,7 @@ def setup_train(hypes):
     folder_name = model_name + folder_name
 
     current_path = os.path.dirname(__file__)
-    current_path = os.path.join(current_path, '../logs_HEAL')
+    current_path = os.path.join(current_path, '../../logs_v2')
 
     full_path = os.path.join(current_path, folder_name)
 
@@ -227,7 +219,9 @@ def setup_optimizer(hypes, model):
     if not optimizer_method:
         raise ValueError('{} is not supported'.format(method_dict['name']))
     if 'args' in method_dict:
-        return optimizer_method(model.parameters(),
+        return optimizer_method(
+                                # model.parameters(),
+            filter(lambda p: p.requires_grad, model.parameters()),
                                 lr=method_dict['lr'],
                                 **method_dict['args'])
     else:

@@ -55,6 +55,8 @@ class ConvGRUCell(nn.Module):
         :return: h_next,
             next hidden state
         """
+        # print("input_tensor.shape: ", input_tensor.shape)
+        # print("h_cur.shape: ", h_cur.shape)
         combined = torch.cat([input_tensor, h_cur], dim=1)
         combined_conv = self.conv_gates(combined)
 

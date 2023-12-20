@@ -23,9 +23,9 @@ class LiftSplatShoot(nn.Module):
         self.data_aug_conf = args['data_aug_conf']   # 数据增强配置参数
         self.bevout_feature = args['bevout_feature']
         dx, bx, nx = gen_dx_bx(self.grid_conf['xbound'],
-                                self.grid_conf['ybound'],
-                                self.grid_conf['zbound'],
-                                )  # 划分网格
+                                              self.grid_conf['ybound'],
+                                              self.grid_conf['zbound'],
+                                              )  # 划分网格
 
         self.dx = dx.clone().detach().requires_grad_(False).to(torch.device("cuda"))  # [0.4,0.4,20]
         self.bx = bx.clone().detach().requires_grad_(False).to(torch.device("cuda"))  # [-49.8,-49.8,0]

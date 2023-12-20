@@ -84,6 +84,8 @@ class AttFusion(nn.Module):
             t_matrix = pairwise_t_matrix[b][:N, :N, :, :]
             # update each node i
             i = 0 # ego
+            # print(batch_node_features[b].shape)
+            # print(t_matrix[i, :, :, :].shape)
             x = warp_affine_simple(batch_node_features[b], t_matrix[i, :, :, :], (H, W))
             cav_num = x.shape[0]
             x = x.view(cav_num, C, -1).permute(2, 0, 1) #  (H*W, cav_num, C), perform self attention on each pixel.
@@ -118,7 +120,7 @@ class DiscoFusion(nn.Module):
             # (N, 2C, H, W)
             neighbor_feature_cat = torch.cat((neighbor_feature, ego_feature), dim=1)
             # (N, 1, H, W)
-            #print(neighbor_feature_cat.size())
+            print(neighbor_feature_cat.size())
             agent_weight = self.pixel_weight_layer(neighbor_feature_cat) 
             # (N, 1, H, W)
             agent_weight = F.softmax(agent_weight, dim=0)
@@ -544,7 +546,8 @@ class CoBEVT(nn.Module):
         )
 
     def forward(self, x, record_len, pairwise_t_matrix):
-        _, C, H, W = x.shape
+        N, C, H, W = x.shape
+        pairwise_t_matrix = pairwise_t_matrix[:,:N,:N]
         B, L = pairwise_t_matrix.shape[:2]
 
         regroup_feature, mask = Regroup(x, record_len, L)

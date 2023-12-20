@@ -17,6 +17,7 @@ from opencood.utils.camera_utils import (
     normalize_img,
     img_to_tensor,
 )
+from opencood.utils.heter_utils import AgentSelector
 from opencood.utils.common_utils import merge_features_to_dict
 from opencood.utils.transformation_utils import x1_to_x2, x_to_world, get_pairwise_transformation
 from opencood.utils.pose_utils import add_noise_data_dict
@@ -49,6 +50,7 @@ def getIntermediate2stageFusionDataset(cls):
             self.heterogeneous = False
             if 'heter' in params:
                 self.heterogeneous = True
+                self.selector = AgentSelector(params['heter'], self.max_cav)
 
         def get_item_single_car(self, selected_cav_base, ego_cav_base):
             """

@@ -1,7 +1,7 @@
 name: v2x2_npj_early
-root_dir: "/GPFS/rhome/yifanlu/workspace/dataset/v2xsim2_info/v2xsim_infos_train.pkl"  # not dir, but file
-validate_dir: "/GPFS/rhome/yifanlu/workspace/dataset/v2xsim2_info/v2xsim_infos_val.pkl"
-test_dir: "/GPFS/rhome/yifanlu/workspace/dataset/v2xsim2_info/v2xsim_infos_test.pkl"
+root_dir: "/remote-home/share/junhaoge/OpenCOODv2/dataset/v2xsim/v2xsim_infos_train.pkl"  # not dir, but file
+validate_dir: "/remote-home/share/junhaoge/OpenCOODv2/dataset/v2xsim/v2xsim_infos_val.pkl"
+test_dir: "/remote-home/share/junhaoge/OpenCOODv2/dataset/v2xsim/v2xsim_infos_test.pkl"
 
 noise_setting:
   add_noise: false
@@ -25,6 +25,9 @@ fusion:
   dataset: 'v2xsim'
   args: 
     proj_first: false
+
+# delay related
+time_delay: 5
 
 # preprocess-related
 preprocess:

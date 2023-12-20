@@ -7,8 +7,8 @@ from opencood.models.sub_modules.base_bev_backbone_resnet import ResNetBEVBackbo
 from opencood.models.sub_modules.downsample_conv import DownsampleConv
 from opencood.models.sub_modules.naive_compress import NaiveCompressor
 from opencood.models.sub_modules.dcn_net import DCNNet
-# from opencood.models.fuse_modules.where2comm import Where2comm
-from opencood.models.fuse_modules.where2comm_attn import Where2comm
+from opencood.models.fuse_modules.where2comm import Where2comm
+# from opencood.models.fuse_modules.where2comm_attn import Where2comm
 import torch
 
 class PointPillarWhere2comm(nn.Module):
@@ -39,6 +39,11 @@ class PointPillarWhere2comm(nn.Module):
         if 'compression' in args and args['compression'] > 0:
             self.compression = True
             self.naive_compressor = NaiveCompressor(256, args['compression'])
+        
+        self.dcn = False
+        if 'dcn' in args:
+            self.dcn = True
+            self.dcn_net = DCNNet(args['dcn'])
 
         # self.fusion_net = TransformerFusion(args['fusion_args'])
         self.fusion_net = Where2comm(args['fusion_args'])
@@ -85,14 +90,36 @@ class PointPillarWhere2comm(nn.Module):
         cum_sum_len = torch.cumsum(record_len, dim=0)
         split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
         return split_x
-
-    def forward(self, data_dict):
+    
+    def encode(self, x):
+        feat_list = self.backbone.get_multiscale_feature(x)
+        return feat_list
+    
+    def decode(self, feat_list):
+        feat = self.backbone.decode_multiscale_feature(feat_list)
+        # downsample feature to reduce memory
+        if self.shrink_flag:
+            feat = self.shrink_conv(feat)
+        # compressor
+        if self.compression:
+            feat = self.naive_compressor(feat)
+        # dcn
+        if self.dcn:
+            feat = self.dcn_net(feat)
+        return feat 
+    
+    def get_ego_feat(self, feats, record_len):
+        # feats [N,C,H,W]
+        split_feats = self.regroup(feats, record_len)
+        curr_ego_feat = [feat[0:1] for feat in split_feats]
+        curr_ego_feat = torch.cat(curr_ego_feat, dim=0) if len(curr_ego_feat)>1 else curr_ego_feat[0]
+        return curr_ego_feat    # [B, C, H, W]
+    
+    def get_voxel_feat(self, data_dict):
         voxel_features = data_dict['processed_lidar']['voxel_features']
         voxel_coords = data_dict['processed_lidar']['voxel_coords']
         voxel_num_points = data_dict['processed_lidar']['voxel_num_points']
         record_len = data_dict['record_len']
-
-        pairwise_t_matrix = data_dict['pairwise_t_matrix']
 
         batch_dict = {'voxel_features': voxel_features,
                       'voxel_coords': voxel_coords,
@@ -102,49 +129,51 @@ class PointPillarWhere2comm(nn.Module):
         batch_dict = self.pillar_vfe(batch_dict)
         # n, c -> N, C, H, W
         batch_dict = self.scatter(batch_dict)
-        batch_dict = self.backbone(batch_dict)
-        # N, C, H', W'. [N, 384, 100, 352]
-        spatial_features_2d = batch_dict['spatial_features_2d']
-        
-        # downsample feature to reduce memory
-        if self.shrink_flag:
-            spatial_features_2d = self.shrink_conv(spatial_features_2d)
-        # compressor
-        if self.compression:
-            spatial_features_2d = self.naive_compressor(spatial_features_2d)
-        # spatial_features_2d is [sum(cav_num), 256, 50, 176]
-        # output only contains ego
-        # [B, 256, 50, 176]
-        psm_single = self.cls_head(spatial_features_2d)
-        rm_single = self.reg_head(spatial_features_2d)
-        if self.use_dir:
-            dir_single = self.dir_head(spatial_features_2d)
+        return batch_dict
 
-        if self.multi_scale:
-            fused_feature, communication_rates, result_dict = self.fusion_net(batch_dict['spatial_features'],
-                                            psm_single,
-                                            record_len,
-                                            pairwise_t_matrix, 
-                                            self.backbone)
-            # downsample feature to reduce memory
-            if self.shrink_flag:
-                fused_feature = self.shrink_conv(fused_feature)
-        else:
-            fused_feature, communication_rates, result_dict = self.fusion_net(spatial_features_2d,
-                                            psm_single,
-                                            record_len,
-                                            pairwise_t_matrix)
+    def forward(self, data_dict):
+        record_len = data_dict['record_len']
+        pairwise_t_matrix = data_dict['pairwise_t_matrix']
+        batch_dict = self.get_voxel_feat(data_dict)
+
+        #################### Single Encode & Decode ##################
+        feat_list_single = self.encode(batch_dict['spatial_features'])
+        feats_single = self.decode(feat_list_single)   # [sum(cav_num)*num_sweep_frames, 256, 100, 352]
+        psm_single = self.cls_head(feats_single)
+        rm_single = self.reg_head(feats_single)
+        ##############################################################
+
+        if self.use_dir:
+            dir_single = self.dir_head(feats_single)
+
+        ################# Fuse features at each timestamp ############
+        fuse_layer_id = 0
+        spatial_features_2d = feat_list_single[fuse_layer_id]
+        fused_feature, communication_rates, result_dict = self.fusion_net(spatial_features_2d,
+                                    psm_single.sigmoid().max(dim=1)[0].unsqueeze(1),
+                                    record_len,
+                                    pairwise_t_matrix)
+        ##############################################################
             
-            
+        ################## Decode collaborated features ##############
+        feat_list_colla = []
+        for layer_id, feat in enumerate(feat_list_single):
+            if layer_id == fuse_layer_id:
+                feat_list_colla.append(self.get_ego_feat(fused_feature, record_len))
+            else:
+                feat_list_colla.append(self.get_ego_feat(feat_list_single[layer_id], record_len))
+        feats_colla = self.decode(feat_list_colla)
+        ##############################################################
+        
         # print('fused_feature: ', fused_feature.shape)
-        psm = self.cls_head(fused_feature)
-        rm = self.reg_head(fused_feature)
+        psm = self.cls_head(feats_colla)
+        rm = self.reg_head(feats_colla)
         
 
         output_dict = {'cls_preds': psm,
                        'reg_preds': rm}
         if self.use_dir:
-            output_dict.update({'dir_preds': self.dir_head(fused_feature),
+            output_dict.update({'dir_preds': self.dir_head(feats_colla),
                                 'dir_preds_single': dir_single})
 
         output_dict.update(result_dict)

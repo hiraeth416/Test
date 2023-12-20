@@ -65,8 +65,8 @@ def main():
     model.eval()
 
     # add noise to pose.
-    pos_std_list = [0, 0.2, 0.4, 0.6]
-    rot_std_list = [0, 0.2, 0.4, 0.6]
+    pos_std_list = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
+    rot_std_list = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
     pos_mean_list = [0, 0, 0, 0]
     rot_mean_list = [0, 0, 0, 0]
 
@@ -175,7 +175,7 @@ def main():
                                             0.7)
 
 
-                    if (i % opt.save_vis_interval == 0) and (pred_box_tensor is not None or gt_box_tensor is not None) and (use_laplace is False):
+                    if (i % opt.save_vis_interval == 0) and (pred_box_tensor is not None) and (use_laplace is False):
                         vis_save_path_root = os.path.join(opt.model_dir, f'vis_{noise_level}')
                         if not os.path.exists(vis_save_path_root):
                             os.makedirs(vis_save_path_root)

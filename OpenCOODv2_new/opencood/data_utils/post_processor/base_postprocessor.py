@@ -99,10 +99,13 @@ class BasePostprocessor(object):
 
         # filter the gt_box to make sure all bbx are in the range. with z dim
         gt_box3d_np = gt_box3d_tensor.cpu().numpy()
-        gt_box3d_np = box_utils.mask_boxes_outside_range_numpy(gt_box3d_np,
+        gt_box3d_np, mask = box_utils.mask_boxes_outside_range_numpy(gt_box3d_np,
                                                     self.params['gt_range'],
-                                                    order=None)
-        gt_box3d_tensor = torch.from_numpy(gt_box3d_np).to(device=gt_box3d_list.device)
+                                                    order=None, return_mask=True)
+        filtered_object_idx = np.array(list(set(object_id_list)))[np.where(mask)[0]]
+        gt_box3d_np, mask = box_utils.mask_boxes_by_size_numpy(gt_box3d_np, return_mask=True)
+        gt_box3d_tensor = torch.from_numpy(gt_box3d_np).to(device=gt_box3d_list[0].device)
+        gt_object_idx = filtered_object_idx[np.where(mask)[0]]
 
         return gt_box3d_tensor
 
@@ -455,9 +458,7 @@ class BasePostprocessor(object):
         output_dict = {}
         filter_range = self.params['anchor_args']['cav_lidar_range']
 
-        cav_coor = cav_content['params']['lidar_pose_clean'] # T_world_cav
-
-        
+        cav_coor = cav_content['params']['lidar_pose'] # T_world_cav
         ego_coor = reference_lidar_pose # T_world_ego
         T_ego_cav = x1_to_x2(cav_coor, ego_coor) # T_ego_cav
 

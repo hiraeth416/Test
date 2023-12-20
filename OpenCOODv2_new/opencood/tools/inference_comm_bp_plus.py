@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader, Subset
 import numpy as np
 import opencood.hypes_yaml.yaml_utils as yaml_utils
 from opencood.tools import train_utils, inference_utils
-from opencood.data_utils.datasets import build_dataset, build_dataset_latency
+from opencood.data_utils.datasets import build_dataset
 from opencood.utils import eval_utils
 from opencood.visualization import vis_utils, my_vis, simple_vis
 from opencood.utils.common_utils import update_dict
@@ -90,7 +90,7 @@ def test_parser():
 
 def main():
     opt = test_parser()
-
+    model_times = []
     assert opt.fusion_method in ['late', 'early', 'intermediate', 'no', 'no_w_uncertainty', 'single'] 
     if opt.hypes_yaml is None:
         hypes = yaml_utils.load_yaml(None, opt)
@@ -276,10 +276,10 @@ def main():
     
     # build dataset for each noise setting
     print('Dataset Building')
-    opencood_dataset = build_dataset_latency(hypes, visualize=True, train=False)
-    # opencood_dataset_subset = Subset(opencood_dataset, range(2043,2075))
-    # data_loader = DataLoader(opencood_dataset_subset,
-    data_loader = DataLoader(opencood_dataset,
+    opencood_dataset = build_dataset(hypes, visualize=True, train=False)
+    opencood_dataset_subset = Subset(opencood_dataset, range(1,200))
+    data_loader = DataLoader(opencood_dataset_subset,
+    # data_loader = DataLoader(opencood_dataset,
                             batch_size=1,
                             num_workers=8,
                             collate_fn=opencood_dataset.collate_batch_test,
@@ -303,9 +303,9 @@ def main():
     cav_nums = []
     stat = {}
     for i, batch_data in enumerate(data_loader):
+        print(f"{infer_info}_{i}")
         if batch_data is None:
             continue
-        print(f"{infer_info}_{i}")
         cav_num = len(batch_data['ego']['cav_id_list'])
         with torch.no_grad():
             batch_data = train_utils.to_device(batch_data, device)
@@ -322,9 +322,11 @@ def main():
                                             opencood_dataset)
             elif opt.fusion_method == 'intermediate':
                 infer_func = inference_utils.inference_intermediate_fusion_w_idx if opt.save_track else inference_utils.inference_intermediate_fusion
-                infer_result = infer_func(batch_data,
+                infer_result, model_time = infer_func(batch_data,
                                             model,
-                                            opencood_dataset)
+                                            opencood_dataset,
+                                            infer_note='have')
+                model_times.append(model_time)
             elif opt.fusion_method == 'no':
                 infer_func = inference_utils.inference_no_fusion_w_idx if opt.save_track else inference_utils.inference_no_fusion
                 infer_result = infer_func(batch_data,
@@ -443,7 +445,7 @@ def main():
                                     vis_save_path,
                                     method='bev',
                                     left_hand=left_hand)
-        torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
     
     if opt.save_track:
         seqmap_save_path = os.path.join(opt.model_dir, infer_info, 'track', 'gt', 'seqmaps', 'OPV2V-test.txt')
@@ -453,7 +455,12 @@ def main():
             f.write('name'+'\n')
             for scene_idx in list(set(scene_idxs)):
                 f.write(str(scene_idx)+'\n')
-
+    model_time_av = sum(model_times)/len(model_times)
+    model_time_path = os.path.join(opt.model_dir, 'model_time')
+    if not os.path.exists(model_time_path):
+        os.makedirs(model_time_path)
+    with open(os.path.join(opt.model_dir, 'model_time', '{}_latency_{}.txt'.format(opt.model_name,opt.modal)), 'a+') as f:
+        f.write('model_time_av: {:.04f}'.format(model_time_av))
     ap30, ap50, ap70 = eval_utils.eval_final_results(result_stat,
                                 opt.model_dir, infer_info)
     # print("comm_rates",comm_rates)

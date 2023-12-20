@@ -17,6 +17,7 @@ from opencood.utils.camera_utils import (
     normalize_img,
     img_to_tensor,
 )
+from opencood.utils.heter_utils import AgentSelector
 from opencood.utils.common_utils import merge_features_to_dict
 from opencood.utils.transformation_utils import x1_to_x2, x_to_world, get_pairwise_transformation
 from opencood.utils.pose_utils import add_noise_data_dict
@@ -48,6 +49,7 @@ def getIntermediateFusionDataset(cls):
             self.heterogeneous = False
             if 'heter' in params:
                 self.heterogeneous = True
+                self.selector = AgentSelector(params['heter'], self.max_cav)
 
             self.kd_flag = params.get('kd_flag', False)
 
@@ -613,7 +615,15 @@ def getIntermediateFusionDataset(cls):
                 output_dict['ego'].update({
                     "lidar_agent_record": torch.from_numpy(np.concatenate(lidar_agent_list)) # [0,1,1,0,1...]
                 })
-
+            
+            transformation_matrix_torch = \
+                torch.from_numpy(np.identity(4)).float()
+            transformation_matrix_clean_torch = \
+                torch.from_numpy(np.identity(4)).float()
+            output_dict['ego'].update({'transformation_matrix':
+                                        transformation_matrix_torch,
+                                        'transformation_matrix_clean':
+                                        transformation_matrix_clean_torch,})
             return output_dict
 
         def collate_batch_test(self, batch):
@@ -648,7 +658,7 @@ def getIntermediateFusionDataset(cls):
             return output_dict
 
 
-        def post_process(self, data_dict, output_dict):
+        def post_process(self, data_dict, output_dict, return_idx=False):
             """
             Process the outputs of the model to 2D/3D bounding box.
 
@@ -669,11 +679,51 @@ def getIntermediateFusionDataset(cls):
             """
             pred_box_tensor, pred_score = \
                 self.post_processor.post_process(data_dict, output_dict)
-            gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)
 
-            return pred_box_tensor, pred_score, gt_box_tensor
+            if return_idx:
+                gt_box_tensor, gt_idx = self.post_processor.generate_gt_bbx(data_dict, return_idx=True)
+                return pred_box_tensor, pred_score, gt_box_tensor, gt_idx
+            else:
+                gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)
+                return pred_box_tensor, pred_score, gt_box_tensor
+            
+        def post_process_previous_timestamp(self, data_dict, output_dict, return_idx=False, previous_timestamp=0):
+            """
+            Process the outputs of the model to 2D/3D bounding box.
 
+            Parameters
+            ----------
+            data_dict : dict
+                The dictionary containing the origin input data of model.
 
+            output_dict :dict
+                The dictionary containing the output of the model.
+
+            Returns
+            -------
+            pred_box_tensor : torch.Tensor
+                The tensor of prediction bounding box after NMS.
+            gt_box_tensor : torch.Tensor
+                The tensor of gt bounding box.
+            """
+            pred_box_tensor, pred_score = \
+                self.post_processor.post_process(data_dict, output_dict)
+
+            if return_idx:
+                gt_box_tensor, gt_idx = self.post_processor.generate_previous_timestamp_gt_box(data_dict, return_idx=True, previous_timestamp=previous_timestamp)
+                return pred_box_tensor, pred_score, gt_box_tensor, gt_idx
+            else:
+                gt_box_tensor = self.post_processor.generate_previous_timestamp_gt_box(data_dict, previous_timestamp=previous_timestamp)
+                return pred_box_tensor, pred_score, gt_box_tensor
+
+        def retrieve_scene_idx(self, idx):
+            scenario_index = 0
+            for i, ele in enumerate(self.len_record):
+                if idx < ele:
+                    scenario_index = i
+                    break
+            return scenario_index
+        
     return IntermediateFusionDataset
 
 

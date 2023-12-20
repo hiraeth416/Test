@@ -195,10 +195,10 @@ class HeterModelSharedhead(nn.Module):
         curr_ego_feat = torch.cat(curr_ego_feat, dim=0) if len(curr_ego_feat) > 1 else curr_ego_feat[0]
         return curr_ego_feat  # [B, C, H, W]
 
-    def forward(self, data_dict):
+    def forward(self, i, data_dict):
         output_dict = {}
         agent_modality_list = data_dict['agent_modality_list'] 
-        #print(agent_modality_list)
+        print(agent_modality_list)
         t_matrix = normalize_pairwise_tfm(data_dict['pairwise_t_matrix'], self.H, self.W, self.fake_voxel_size)
         pairwise_t_matrix = data_dict['pairwise_t_matrix']
         record_len = data_dict['record_len'] 
@@ -337,13 +337,13 @@ class HeterModelSharedhead(nn.Module):
               feature_list[i] = feature_list[i] * communication_masks
               communication_masks = F.max_pool2d(communication_masks, kernel_size=2)'''
         fused_feature_list = []
-        #print('feature_list', feature_list[0].size())
+        # print('feature_list', feature_list[0].size())
         for i, fuse_module in enumerate(self.fusion_net):
             if i ==0 :
                 fused_feature_list.append(fuse_module(feature_list[i], record_len, t_matrix))
             else:
                 fused_feature_list.append(self.get_ego_feat(feature_list[i], record_len))
-        #print(fused_feature_list[0].size())
+        # print(fused_feature_list[0].size())0
         fused_feature = self.backbone.decode_multiscale_feature(fused_feature_list)
 
         if self.shrink_flag:
