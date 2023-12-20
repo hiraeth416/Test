@@ -2,7 +2,6 @@
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
-
 import argparse
 import os
 import statistics
@@ -40,7 +39,6 @@ def main():
     opencood_validate_dataset = build_dataset(hypes,
                                               visualize=False,
                                               train=False)
-
     train_loader = DataLoader(opencood_train_dataset,
                               batch_size=hypes['train_params']['batch_size'],
                               num_workers=4,
@@ -80,7 +78,6 @@ def main():
     # optimizer setup
     optimizer = train_utils.setup_optimizer(hypes, model)
     # lr scheduler setup
-    
 
     # if we want to train from last checkpoint.
     if opt.model_dir:
@@ -159,9 +156,7 @@ def main():
 
                     final_loss = criterion(ouput_dict,
                                            batch_data['ego']['label_dict'])
-                    print(f'val loss {final_loss:.3f}')
                     valid_ave_loss.append(final_loss.item())
-                    torch.cuda.empty_cache()
 
             valid_ave_loss = statistics.mean(valid_ave_loss)
             print('At epoch %d, the validation loss is %f' % (epoch,

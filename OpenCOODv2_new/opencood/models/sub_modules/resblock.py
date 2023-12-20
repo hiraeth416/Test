@@ -146,7 +146,6 @@ class ResNetModified(nn.Module):
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
-
         self.inplanes = inplanes
         self.dilation = 1
         if replace_stride_with_dilation is None:
@@ -162,7 +161,6 @@ class ResNetModified(nn.Module):
         self.layernum = len(num_filters)
         for i in range(self.layernum):
             self.__setattr__(f"layer{i}", self._make_layer(block, num_filters[i], layers[i], stride=layer_strides[i]))
-
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):

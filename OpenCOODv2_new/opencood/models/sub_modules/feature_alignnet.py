@@ -318,7 +318,6 @@ class AlignNet(nn.Module):
     def forward(self, x):
         return self.channel_align(x)
 
-
     def spatail_align(self, student_feature, teacher_feature, physical_dist):
         physical_offset = self.warpnet(torch.cat([student_feature, teacher_feature], dim=1)).permute(0,2,3,1) # N, H, W, 2, unit is meter.
         mask = torch.any(teacher_feature != 0, dim=1)

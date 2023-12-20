@@ -9,6 +9,39 @@ import os
 from collections import OrderedDict
 import json
 
+
+class AgentSelector:
+    def __init__(self, args, max_cav):
+        self.lidar_ratio = args['lidar_ratio']
+        self.ego_modality = args['ego_modality']  # 'random' / 'lidar'/ 'camera'
+        self.max_cav = max_cav
+
+        self.preset = None
+        if "preset_file" in args:
+            self.preset_file = args['preset_file'] # txt file
+            self.preset = np.loadtxt(self.preset_file)
+
+
+    def select_agent(self, i):
+        """
+        select agent to be equipped with LiDAR / Camera according to the strategy
+        1 indicates lidar
+        0 indicates camera
+        """
+        lidar_agent = np.random.choice(2, self.max_cav, p=[1 - self.lidar_ratio, self.lidar_ratio])
+
+        if self.ego_modality == 'lidar':
+            lidar_agent[0] = 1
+
+        if self.ego_modality == 'camera':
+            lidar_agent[0] = 0
+        
+        if self.preset:
+            lidar_agent = self.preset[i]
+
+        return lidar_agent, 1 - lidar_agent
+    
+
 class Adaptor:
     def __init__(self, 
                 ego_modality, 
@@ -128,6 +161,9 @@ def assign_modality(root_dir="dataset/OPV2V", output_path="opencood/logs/heter_m
 def assign_modality_4(root_dir="dataset/OPV2V", output_path="opencood/logs/heter_modality_assign/opv2v_4modality.json"):
     np.random.seed(303)
     splits = ['train', 'test', 'validate']
+    # splits = ['test_64_new']
+    # splits = ['test_32']
+    splits = ['test_64_half']
     scenario_cav_modality_dict = OrderedDict()
 
     for split in splits:
@@ -152,4 +188,4 @@ def assign_modality_4(root_dir="dataset/OPV2V", output_path="opencood/logs/heter
         json.dump(scenario_cav_modality_dict, f, indent=4, sort_keys=True)
 
 if __name__ == "__main__":
-    assign_modality_4()
+    assign_modality_4(root_dir="/GPFS/rhome/yifanlu/workspace/dataset/OPV2V_MoreAgents/lidar/", output_path="/GPFS/public/yhu/OpenCOODv2_CodeFilling/modality_assignment_more_agent_lidar_train.json")

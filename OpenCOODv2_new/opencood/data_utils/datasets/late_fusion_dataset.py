@@ -12,6 +12,10 @@ import pickle as pkl
 from opencood.utils import box_utils as box_utils
 from opencood.data_utils.pre_processor import build_preprocessor
 from opencood.data_utils.post_processor import build_postprocessor
+<<<<<<< HEAD
+from opencood.utils.heter_utils import AgentSelector
+=======
+>>>>>>> origin/lsf
 from opencood.utils.camera_utils import (
     sample_augmentation,
     img_transform,
@@ -42,6 +46,10 @@ def getLateFusionDataset(cls):
             self.heterogeneous = False
             if 'heter' in params:
                 self.heterogeneous = True
+<<<<<<< HEAD
+                self.selector = AgentSelector(params['heter'], self.max_cav)
+=======
+>>>>>>> origin/lsf
 
         def __getitem__(self, idx):
             base_data_dict = self.retrieve_base_data(idx)
@@ -120,7 +128,12 @@ def getLateFusionDataset(cls):
                 selected_cav_processed = \
                     self.get_item_single_car(selected_cav_base)
                 selected_cav_processed.update({'transformation_matrix': transformation_matrix,
+<<<<<<< HEAD
+                                            'transformation_matrix_clean': transformation_matrix_clean,
+                                            'lidar_pose': cav_lidar_pose})
+=======
                                             'transformation_matrix_clean': transformation_matrix_clean})
+>>>>>>> origin/lsf
                 update_cav = "ego" if cav_id == ego_id else cav_id
                 processed_data_dict.update({update_cav: selected_cav_processed})
                 cav_id_list_newname.append(update_cav)
@@ -489,16 +502,27 @@ def getLateFusionDataset(cls):
                         np.array(cav_content['transformation_matrix'])).float()
                 
                 # late fusion training, no noise
+<<<<<<< HEAD
+                transformation_matrix_clean_torch = transformation_matrix_torch
+                lidar_pose = torch.from_numpy(
+                        np.array(cav_content['lidar_pose'])).float().unsqueeze(0)
+=======
                 transformation_matrix_clean_torch = \
                     torch.from_numpy(
                         np.array(cav_content['transformation_matrix_clean'])).float()
+>>>>>>> origin/lsf
 
                 output_dict[cav_id].update({'object_bbx_center': object_bbx_center,
                                             'object_bbx_mask': object_bbx_mask,
                                             'label_dict': label_torch_dict,
                                             'object_ids': object_ids,
                                             'transformation_matrix': transformation_matrix_torch,
+<<<<<<< HEAD
+                                            'transformation_matrix_clean': transformation_matrix_clean_torch,
+                                            'lidar_pose': lidar_pose})
+=======
                                             'transformation_matrix_clean': transformation_matrix_clean_torch})
+>>>>>>> origin/lsf
 
                 if self.visualize:
                     origin_lidar = \
@@ -516,7 +540,11 @@ def getLateFusionDataset(cls):
             return output_dict
 
 
+<<<<<<< HEAD
+        def post_process(self, data_dict, output_dict, return_idx=False):
+=======
         def post_process(self, data_dict, output_dict):
+>>>>>>> origin/lsf
             """
             Process the outputs of the model to 2D/3D bounding box.
 
@@ -538,6 +566,28 @@ def getLateFusionDataset(cls):
             pred_box_tensor, pred_score = self.post_processor.post_process(
                 data_dict, output_dict
             )
+<<<<<<< HEAD
+            if return_idx: 
+                gt_box_tensor, gt_idx = self.post_processor.generate_gt_bbx(data_dict, return_idx=True)
+                return pred_box_tensor, pred_score, gt_box_tensor, gt_idx
+            else:
+                gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)
+                return pred_box_tensor, pred_score, gt_box_tensor
+
+        def post_process_no_fusion(self, data_dict, output_dict_ego, return_idx=False):
+            data_dict_ego = OrderedDict()
+            data_dict_ego["ego"] = data_dict["ego"]
+            pred_box_tensor, pred_score = self.post_processor.post_process(
+                data_dict_ego, output_dict_ego
+            )
+
+            if return_idx:
+                gt_box_tensor, gt_idx = self.post_processor.generate_gt_bbx(data_dict, return_idx=True)
+                return pred_box_tensor, pred_score, gt_box_tensor, gt_idx
+            else:
+                gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)
+                return pred_box_tensor, pred_score, gt_box_tensor
+=======
             gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)
 
             return pred_box_tensor, pred_score, gt_box_tensor
@@ -551,6 +601,7 @@ def getLateFusionDataset(cls):
                 data_dict_ego, output_dict_ego
             )
             return pred_box_tensor, pred_score, gt_box_tensor
+>>>>>>> origin/lsf
 
         def post_process_no_fusion_uncertainty(self, data_dict, output_dict_ego):
             data_dict_ego = OrderedDict()
@@ -560,5 +611,16 @@ def getLateFusionDataset(cls):
             pred_box_tensor, pred_score, uncertainty = \
                 self.post_processor.post_process(data_dict_ego, output_dict_ego, return_uncertainty=True)
             return pred_box_tensor, pred_score, gt_box_tensor, uncertainty
+<<<<<<< HEAD
+        
+        def retrieve_scene_idx(self, idx):
+            scenario_index = 0
+            for i, ele in enumerate(self.len_record):
+                if idx < ele:
+                    scenario_index = i
+                    break
+            return scenario_index
+=======
+>>>>>>> origin/lsf
 
     return LateFusionDataset

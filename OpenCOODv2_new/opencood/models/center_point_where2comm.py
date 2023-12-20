@@ -10,6 +10,7 @@ from opencood.models.sub_modules.dcn_net import DCNNet
 # from opencood.models.fuse_modules.where2comm import Where2comm
 from opencood.models.fuse_modules.where2comm_attn import Where2comm
 import torch
+import torch.nn.functional as F
 
 class CenterPointWhere2comm(nn.Module):
     def __init__(self, args):
@@ -57,6 +58,12 @@ class CenterPointWhere2comm(nn.Module):
                                   kernel_size=1)
         self.reg_head = nn.Conv2d(self.out_channel, 8 * args['anchor_number'],
                                   kernel_size=1)
+
+        # self.linear1 = nn.Conv2d(self.out_channel, self.out_channel,
+        #                           kernel_size=1)
+        # self.linear2 = nn.Conv2d(self.out_channel, self.out_channel,
+        #                           kernel_size=1)
+        
         if 'backbone_fix' in args.keys() and args['backbone_fix']:
             self.backbone_fix()
         
@@ -192,7 +199,6 @@ class CenterPointWhere2comm(nn.Module):
         batch_reg = box_preds[..., 0:2]
         # batch_hei = box_preds[..., 2:3] 
         # batch_dim = torch.exp(box_preds[..., 3:6])
-        
         h = box_preds[..., 3:4] * self.out_size_factor * self.voxel_size[0]
         w = box_preds[..., 4:5] * self.out_size_factor * self.voxel_size[1]
         l = box_preds[..., 5:6] * self.out_size_factor * self.voxel_size[2]

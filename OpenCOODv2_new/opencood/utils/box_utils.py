@@ -22,6 +22,44 @@ def corner_to_center_torch(corner3d, order='lwh'):
     corner3d_ = corner3d.cpu().numpy()
     return torch.from_numpy(corner_to_center(corner3d_, order)).to(corner3d.device)
 
+def mask_boxes_by_size_numpy(boxes, min_size=[1.5,1.5], order='lwh',
+                                   min_num_dim=2, return_mask=False):
+    """
+    Parameters
+    ----------
+    boxes: np.ndarray
+        (N, 7) [x, y, z, dx, dy, dz, heading], (x, y, z) is the box center
+
+    min_size: list
+        [minx, miny]
+
+    min_num_dim: int
+        The required minimum number of shape to be considered as in range.
+
+    order : str
+        'lwh' or 'hwl'
+
+    return_mask : bool
+        Whether return the mask.
+
+    Returns
+    -------
+    boxes: np.ndarray
+        The filtered boxes.
+    """
+    assert boxes.shape[1] == 8 or boxes.shape[1] == 7
+
+    new_boxes = boxes.copy()
+    if boxes.shape[1] != 7:
+        new_boxes = corner_to_center(new_boxes, order)
+    
+    mask = (new_boxes[:,3:5] >= min_size).sum(axis=1) >= min_num_dim
+
+    if return_mask:
+        return boxes[mask], mask
+    return boxes[mask]
+
+
 def corner_to_center(corner3d, order='lwh'):
     """
     Convert 8 corners to x, y, z, dx, dy, dz, yaw.

@@ -231,8 +231,7 @@ class HeterModelSharedhead(nn.Module):
 
     def forward(self, data_dict):
         output_dict = {}
-        agent_modality_list = data_dict['agent_modality_list'] 
-        #print(agent_modality_list)
+        agent_modality_list = data_dict['agent_modality_list']
         t_matrix = normalize_pairwise_tfm(data_dict['pairwise_t_matrix'], self.H, self.W, self.fake_voxel_size)
         pairwise_t_matrix = data_dict['pairwise_t_matrix']
         record_len = data_dict['record_len'] 
@@ -420,22 +419,22 @@ class HeterModelSharedhead(nn.Module):
             fused_feature = self.shrink_conv(fused_feature)
 
         cls_preds = self.cls_head(fused_feature)
-        #print("cls_preds", cls_preds.shape)
         reg_preds = self.reg_head(fused_feature)
-        #print("reg_preds", reg_preds.shape)
         dir_preds = self.dir_head(fused_feature)
-        #print("dir_preds", dir_preds.shape)
+
+       
 
         output_dict.update({'cls_preds': cls_preds,
                             'reg_preds': reg_preds,
                             'dir_preds': dir_preds,
                             'comm_rates': communication_rates})
-
+        # print("comm_rates",output_dict['comm_rates'])
         return output_dict
+
 
     def single_forward(self, data_dict):
         output_dict = {}
-        #print("single_forward")
+        print("single_forward")
         agent_modality_list = data_dict['agent_modality_list']
         t_matrix = normalize_pairwise_tfm(data_dict['pairwise_t_matrix'], self.H, self.W, self.fake_voxel_size)
         

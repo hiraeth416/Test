@@ -2,8 +2,8 @@
 name: visualization
 
 yaml_parser: "load_voxel_params"
-root_dir: "/GPFS/rhome/yifanlu/workspace/dataset/OPV2V/train"
-validate_dir: "/GPFS/rhome/yifanlu/workspace/dataset/OPV2V/test"
+root_dir: "/dssg/home/acct-umjpyb/umjpyb/jtpeng/OPV2V_MoreAgents/test_64_half"
+validate_dir: "/dssg/home/acct-umjpyb/umjpyb/jtpeng/OPV2V_MoreAgents/test_64_half"
 
 
 train_params:

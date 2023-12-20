@@ -46,6 +46,8 @@ def test_parser():
                              'in npy file')
     parser.add_argument('--range', type=str, default="140.8,40",
                         help="detection range is [-140.8,+140.8m, -40m, +40m]")
+    parser.add_argument('--modal', type=int, default=0,
+                        help='used in heterogeneous setting, 0 lidaronly, 1 camonly, 2 ego_lidar_other_cam, 3 ego_cam_other_lidar')
     parser.add_argument('--no_score', action='store_true',
                         help="whether print the score of prediction")
     parser.add_argument('--note', default="", type=str, help="any other thing?")
@@ -61,9 +63,7 @@ def test_parser():
     parser.add_argument('--R_thre', default=1.0, type=float, help="history threshold")
     parser.add_argument('--result_name', default="", type=str, help="result txt name")
     parser.add_argument('--noise', default=0.0, type=float, help="pose error")
-
-    parser.add_argument('--modal', type=int, default=0,
-                        help='used in heterogeneous setting, 0 lidaronly, 1 camonly, 2 ego_lidar_other_cam, 3 ego_cam_other_lidar')
+    parser.add_argument('--delay_time', default="-1", type=int, help="latency time")
     parser.add_argument('--sample_method', type=str, default="none",
                         help="the method to downsample the point cloud")
     parser.add_argument('--store_boxes', default=True,action='store_true',
@@ -267,16 +267,28 @@ def main():
     
 
     # add noise to pose.
-    pos_std_list = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
-    rot_std_list = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
-    pos_mean_list = [0, 0, 0, 0, 0, 0, 0]
-    rot_mean_list = [0, 0, 0, 0, 0, 0, 0]
+    # pos_std_list = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
+    # rot_std_list = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
+    pos_std_list = [0, 0.2, 0.4, 0.6, 0.8, 1.0]
+    rot_std_list = [0, 0.2, 0.4, 0.6, 0.8, 1.0]
+    # pos_mean_list = [0, 0, 0, 0, 0, 0, 0]
+    # rot_mean_list = [0, 0, 0, 0, 0, 0, 0]
+    pos_mean_list = [0, 0, 0, 0, 0, 0]
+    rot_mean_list = [0, 0, 0, 0, 0, 0]
+    # pos_std_list = [0, 0.2]
+    # rot_std_list = [0, 0.2]
+    # pos_std_list = [0.4, 0.6]
+    # rot_std_list = [0.4, 0.6]
+    # pos_mean_list = [0, 0, 0, 0, 0, 0, 0]
+    # rot_mean_list = [0, 0, 0, 0, 0, 0, 0]
+    # pos_mean_list = [0, 0]
+    # rot_mean_list = [0, 0]    
     # pos_std_list = [opt.noise]
     # rot_std_list = [opt.noise]
-    # pos_std_list = [0]
-    # rot_std_list = [0]
-    # pos_mean_list = [0]
-    # rot_mean_list = [0]
+    # pos_std_list = [0.8,1.0]
+    # rot_std_list = [0.8,1.0]
+    # pos_mean_list = [0,0]
+    # rot_mean_list = [0,0]
 
     
     if opt.also_laplace:
@@ -310,7 +322,7 @@ def main():
             print(f"Noise Added: {pos_std}/{rot_std}/{pos_mean}/{rot_mean}.")
             hypes.update({"noise_setting": noise_setting})
             opencood_dataset = build_dataset(hypes, visualize=True, train=False)
-            # opencood_dataset_subset = Subset(opencood_dataset, range(160,1230))
+            # opencood_dataset_subset = Subset(opencood_dataset, range(0,16))
             # data_loader = DataLoader(opencood_dataset_subset,
             data_loader = DataLoader(opencood_dataset,
                                     batch_size=1,
@@ -331,6 +343,7 @@ def main():
 
             scene_idxs = []
             comm_rates = []
+            comm_rate = 0.0
             cav_nums = []
             stat={}
             for i, batch_data in enumerate(data_loader):
@@ -486,7 +499,7 @@ def main():
                                             vis_save_path,
                                             method='bev',
                                             left_hand=left_hand)
-                torch.cuda.empty_cache()
+                # torch.cuda.empty_cache()
             
             if opt.save_track:
                 seqmap_save_path = os.path.join(opt.model_dir, infer_info, 'track', 'gt', 'seqmaps', 'OPV2V-test.txt')
@@ -499,18 +512,22 @@ def main():
 
             ap30, ap50, ap70 = eval_utils.eval_final_results(result_stat,
                                         opt.model_dir, infer_info)
-            
+            comm_stat = {"comm_rates":comm_rates,
+                  "cav_nums":cav_nums
+                  }
             if len(comm_rates) > 0:
-                comm_rates = sum(comm_rates) / len(comm_rates)
+                comm_rate = sum(comm_rates)
             else:
-                comm_rates = 0.0
-
+                comm_rate = 0.0
+            file_name=os.path.join(opt.model_dir,'{}_{}_commstat_{}.json'.format(opt.model_name,opt.modal,opt.comm_thre))
+            with open(file_name,'w') as f:
+                json.dump(comm_stat,f)
             detection_path = os.path.join(opt.model_dir, 'detection_noise')
             if not os.path.exists(detection_path):
                 os.makedirs(detection_path)
                 
             with open(os.path.join(opt.model_dir,'detection_noise', '{}_noise.txt'.format(opt.model_name)), 'a+') as f:
-                f.write('ap30: {:.04f} ap50: {:.04f} ap70: {:.04f} comm_thre: {:.04f} comm_rate: {:.06f} pos_std: {:.04f} rot_std: {:.04f}\n'.format(ap30, ap50, ap70, opt.comm_thre, comm_rates, pos_std, rot_std))
+                f.write('ap30: {:.04f} ap50: {:.04f} ap70: {:.04f} comm_thre: {:.04f} comm_rate: {:.06f} pos_std: {:.04f} rot_std: {:.04f} solver:{:.04f}\n'.format(ap30, ap50, ap70, opt.comm_thre, comm_rate, pos_std, rot_std, opt.solver_thre))
             
             AP30.append(ap30)
             AP50.append(ap50)

@@ -12,6 +12,23 @@ from opencood.models.sub_modules.convgru import ConvGRU
 from icecream import ic
 from matplotlib import pyplot as plt
 
+class SMaxFusion(nn.Module):
+    def __init__(self):
+        super(SMaxFusion, self).__init__()
+    
+    def regroup(self, x, record_len):
+        cum_sum_len = torch.cumsum(record_len, dim=0)
+        split_x = torch.tensor_split(x, cum_sum_len[:-1].cpu())
+        return split_x
+
+    def forward(self, x1, x2, confidence_maps=None, thre=0.01):
+        if confidence_maps is None:
+            return torch.cat([x1.unsqueeze(1), x2.unsqueeze(1)], dim=1).max(dim=1)[0]
+        else:
+            x2_masked = x2 * ((confidence_maps > thre)*1.0)
+            return torch.cat([x1.unsqueeze(1), x2_masked.unsqueeze(1)], dim=1).max(dim=1)[0]
+
+
 class MaxFusion(nn.Module):
     def __init__(self, args):
         super(MaxFusion, self).__init__()

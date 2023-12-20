@@ -10,11 +10,14 @@ import numpy as np
 import torch
 
 from opencood.utils.common_utils import torch_tensor_to_numpy
-from opencood.utils.transformation_utils import get_relative_transformation
-from opencood.utils.box_utils import create_bbx, project_box3d, nms_rotated
+from opencood.utils.transformation_utils import get_relative_transformation, pose_to_tfm
+from opencood.utils.box_utils import create_bbx, project_box3d, nms_rotated, corner2d_to_standup_box
 from opencood.utils.camera_utils import indices_to_depth
 from sklearn.metrics import mean_squared_error
-def inference_late_fusion(batch_data, model, dataset):
+
+import time
+
+def inference_late_fusion(batch_data, model, dataset, infer_note=None):
     """
     Model inference for late fusion.
 
@@ -32,10 +35,10 @@ def inference_late_fusion(batch_data, model, dataset):
         The tensor of gt bounding box.
     """
     output_dict = OrderedDict()
-    
+    start = time.time()
     output_dict = model.single_forward(batch_data['ego'])
-
-
+    end = time.time()
+    model_time = end - start
     pred_box_tensor, pred_score, gt_box_tensor,_= \
         dataset.post_process_late(batch_data,
                              output_dict)
@@ -43,7 +46,11 @@ def inference_late_fusion(batch_data, model, dataset):
     return_dict = {"pred_box_tensor" : pred_box_tensor, \
                     "pred_score" : pred_score, \
                     "gt_box_tensor" : gt_box_tensor}
-    return return_dict
+    if infer_note is not None:
+        return return_dict, model_time
+    else:
+        return return_dict
+    
 # def inference_late_fusion(batch_data, model, dataset):
 #     """
 #     Model inference for late fusion.
@@ -74,6 +81,39 @@ def inference_late_fusion(batch_data, model, dataset):
 #                     "pred_score" : pred_score, \
 #                     "gt_box_tensor" : gt_box_tensor}
 #     return return_dict
+
+
+def inference_late_fusion_w_idx(batch_data, model, dataset):
+    """
+    Model inference for late fusion.
+
+    Parameters
+    ----------
+    batch_data : dict
+    model : opencood.object
+    dataset : opencood.LateFusionDataset
+
+    Returns
+    -------
+    pred_box_tensor : torch.Tensor
+        The tensor of prediction bounding box after NMS.
+    gt_box_tensor : torch.Tensor
+        The tensor of gt bounding box.
+    """
+    output_dict = OrderedDict()
+
+    for cav_id, cav_content in batch_data.items():
+        output_dict[cav_id] = model(cav_content)
+
+    pred_box_tensor, pred_score, gt_box_tensor, gt_idx = \
+        dataset.post_process(batch_data,
+                             output_dict, return_idx=True)
+    
+    return_dict = {"pred_box_tensor" : pred_box_tensor, \
+                    "pred_score" : pred_score, \
+                    "gt_box_tensor" : gt_box_tensor, \
+                    'gt_idx': gt_idx}
+    return return_dict
 
 
 
@@ -114,6 +154,45 @@ def inference_no_fusion(batch_data, model, dataset, single_gt=False):
                     "gt_box_tensor" : gt_box_tensor}
     return return_dict
 
+
+def inference_no_fusion_w_idx(batch_data, model, dataset, single_gt=False):
+    """
+    Model inference for no fusion.
+
+    Parameters
+    ----------
+    batch_data : dict
+    model : opencood.object
+    dataset : opencood.LateFusionDataset
+
+    Returns
+    -------
+    pred_box_tensor : torch.Tensor
+        The tensor of prediction bounding box after NMS.
+    gt_box_tensor : torch.Tensor
+        The tensor of gt bounding box.
+    single_gt : bool
+        if True, only use ego agent's label.
+        else, use all agent's merged labels.
+    """
+    output_dict_ego = OrderedDict()
+    if single_gt:
+        batch_data = {'ego': batch_data['ego']}
+        
+    output_dict_ego['ego'] = model(batch_data['ego'])
+    # output_dict only contains ego
+    # but batch_data havs all cavs, because we need the gt box inside.
+
+    pred_box_tensor, pred_score, gt_box_tensor, gt_idx = \
+        dataset.post_process_no_fusion(batch_data,  # only for late fusion dataset
+                             output_dict_ego, return_idx=True)
+    
+    return_dict = {"pred_box_tensor" : pred_box_tensor, \
+                    "pred_score" : pred_score, \
+                    "gt_box_tensor" : gt_box_tensor, \
+                    'gt_idx': gt_idx}
+    return return_dict
+
 def inference_no_fusion_w_uncertainty(batch_data, model, dataset):
     """
     Model inference for no fusion.
@@ -149,7 +228,71 @@ def inference_no_fusion_w_uncertainty(batch_data, model, dataset):
     return return_dict
 
 
-def inference_early_fusion(batch_data, model, dataset):
+def inference_early_fusion(batch_data, model, dataset, infer_note=None):
+    """
+    Model inference for early fusion.
+
+    Parameters
+    ----------
+    batch_data : dict
+    model : opencood.object
+    dataset : opencood.EarlyFusionDataset
+
+    Returns
+    -------
+    pred_box_tensor : torch.Tensor
+        The tensor of prediction bounding box after NMS.
+    gt_box_tensor : torch.Tensor
+        The tensor of gt bounding box.
+    """
+    output_dict = OrderedDict()
+    cav_content = batch_data['ego']
+
+    start = time.time()
+    end = time.time()
+    model_time = end - start
+    output_dict['ego'] = model(cav_content)
+    pred_box_tensor, pred_score, gt_box_tensor = \
+        dataset.post_process(batch_data,
+                             output_dict)
+    return_dict = {"pred_box_tensor" : pred_box_tensor, \
+                    "pred_score" : pred_score, \
+                    "gt_box_tensor" : gt_box_tensor}
+    if "depth_items" in output_dict['ego']:
+        return_dict.update({"depth_items" : output_dict['ego']['depth_items']})
+    if "comm_rates" in output_dict['ego']:
+        #print("sjdh")
+        #print(output_dict['ego']['comm_rates'])
+        return_dict.update({"comm_rates" : output_dict['ego']['comm_rates']})
+    return return_dict
+
+
+
+def inference_intermediate_test_fusion(num, model, dataset):
+    save_path = "/GPFS/rhome/sifeiliu/OpenCOODv2/opencood/logs/feature_folder/"
+    batch_data = np.load(os.path.join(save_path,'batchdata%d.npy' % (num)), allow_pickle=True).item()
+    output_dict = OrderedDict()
+    cav_content = batch_data['ego']
+    output_dict['ego'] = model(num, cav_content)
+    pred_box_tensor, pred_score, gt_box_tensor = \
+        dataset.post_process(batch_data,
+                             output_dict)
+    
+    return_dict = {"pred_box_tensor" : pred_box_tensor, \
+                    "pred_score" : pred_score, \
+                    "gt_box_tensor" : gt_box_tensor}
+    if "depth_items" in output_dict['ego']:
+        return_dict.update({"depth_items" : output_dict['ego']['depth_items']})
+    if "comm_rates" in output_dict['ego']:
+        # print("have!")
+        return_dict.update({"comm_rates" : output_dict['ego']['comm_rates']})
+    if infer_note is not None:
+        return return_dict, model_time
+    else:
+        return return_dict
+
+
+def inference_early_fusion_w_idx(batch_data, model, dataset):
     """
     Model inference for early fusion.
 
@@ -169,22 +312,23 @@ def inference_early_fusion(batch_data, model, dataset):
     output_dict = OrderedDict()
     cav_content = batch_data['ego']
     output_dict['ego'] = model(cav_content)
-    pred_box_tensor, pred_score, gt_box_tensor = \
+    
+    pred_box_tensor, pred_score, gt_box_tensor, gt_idx = \
         dataset.post_process(batch_data,
-                             output_dict)
+                             output_dict, return_idx=True)
+    
     return_dict = {"pred_box_tensor" : pred_box_tensor, \
                     "pred_score" : pred_score, \
-                    "gt_box_tensor" : gt_box_tensor}
+                    "gt_box_tensor" : gt_box_tensor, \
+                    'gt_idx': gt_idx}
     if "depth_items" in output_dict['ego']:
         return_dict.update({"depth_items" : output_dict['ego']['depth_items']})
     if "comm_rates" in output_dict['ego']:
-        #print("sjdh")
-        #print(output_dict['ego']['comm_rates'])
+        # print("have!")
         return_dict.update({"comm_rates" : output_dict['ego']['comm_rates']})
     return return_dict
 
-
-def inference_intermediate_fusion(batch_data, model, dataset):
+def inference_intermediate_fusion(batch_data, model, dataset,infer_note=None):
     """
     Model inference for early fusion.
 
@@ -201,29 +345,33 @@ def inference_intermediate_fusion(batch_data, model, dataset):
     gt_box_tensor : torch.Tensor
         The tensor of gt bounding box.
     """
-    return_dict = inference_early_fusion(batch_data, model, dataset)
+    if infer_note is not None:
+        return_dict, model_time = inference_early_fusion(batch_data, model, dataset, infer_note)
+        return return_dict, model_time
+    else:
+        return_dict = inference_early_fusion(batch_data, model, dataset)
+        return return_dict
+
+def inference_intermediate_fusion_w_idx(batch_data, model, dataset):
+    """
+    Model inference for early fusion.
+
+    Parameters
+    ----------
+    batch_data : dict
+    model : opencood.object
+    dataset : opencood.EarlyFusionDataset
+
+    Returns
+    -------
+    pred_box_tensor : torch.Tensor
+        The tensor of prediction bounding box after NMS.
+    gt_box_tensor : torch.Tensor
+        The tensor of gt bounding box.
+    """
+    return_dict = inference_early_fusion_w_idx(batch_data, model, dataset)
     return return_dict
 
-def inference_intermediate_test_fusion(num, model, dataset):
-    save_path = "/GPFS/rhome/sifeiliu/OpenCOODv2/opencood/logs/feature_folder/"
-    batch_data = np.load(os.path.join(save_path,'batchdata%d.npy' % (num)), allow_pickle=True).item()
-    output_dict = OrderedDict()
-    cav_content = batch_data['ego']
-    output_dict['ego'] = model(num, cav_content)
-    pred_box_tensor, pred_score, gt_box_tensor = \
-        dataset.post_process(batch_data,
-                             output_dict)
-    
-    return_dict = {"pred_box_tensor" : pred_box_tensor, \
-                    "pred_score" : pred_score, \
-                    "gt_box_tensor" : gt_box_tensor}
-    if "depth_items" in output_dict['ego']:
-        return_dict.update({"depth_items" : output_dict['ego']['depth_items']})
-    if "comm_rates" in output_dict['ego']:
-        #print("sjdh")
-        #print(output_dict['ego']['comm_rates'])
-        return_dict.update({"comm_rates" : output_dict['ego']['comm_rates']})
-    return return_dict
 
 def save_prediction_gt(pred_tensor, gt_tensor, pcd, timestamp, save_path):
     """
@@ -237,6 +385,28 @@ def save_prediction_gt(pred_tensor, gt_tensor, pcd, timestamp, save_path):
     np.save(os.path.join(save_path, '%04d_pred.npy' % timestamp), pred_np)
     np.save(os.path.join(save_path, '%04d_gt.npy' % timestamp), gt_np)
 
+def save_mot(pred_tensor, pred_score, gt_tensor, gt_idx, pcd, lidar_pose, timestamp, save_path):
+    """
+    Save prediction and gt according to the tracking format.
+    frame_id, obj_id, x0,y0,z0, ..., x7,y7,z7 shape (1, 26)
+    1, 3, 794.27, 247.59, 71.245, ... 
+    """
+    pred_np = torch_tensor_to_numpy(pred_tensor) if pred_tensor is not None else np.zeros([1,24])
+    pred_score_np = torch_tensor_to_numpy(pred_score)[...,None] if pred_tensor is not None else np.zeros([1,1])
+    gt_np = torch_tensor_to_numpy(gt_tensor)
+    gt_idx = np.array([int(x) for x in gt_idx])[...,None]
+    pcd_np = torch_tensor_to_numpy(pcd)
+
+    lidar_pose = torch_tensor_to_numpy(lidar_pose)
+    lidar_t = pose_to_tfm(lidar_pose)[0] # [4,4]
+    
+    pred = np.concatenate([np.ones([len(pred_np),1])*timestamp,pred_score_np,pred_np.reshape(-1,24)], axis=-1) # frame_id,conf,eight corner
+    gt = np.concatenate([np.ones([len(gt_np),1])*timestamp,gt_idx, gt_np.reshape(-1,24)], axis=-1) # frame_id,obj_id,eight corner
+    np.save(os.path.join(save_path, '%04d_pred.npy' % timestamp), pred)
+    np.save(os.path.join(save_path, '%04d_gt.npy' % timestamp), gt)
+    np.save(os.path.join(save_path, '%04d_pcd.npy' % timestamp), pcd_np)
+    np.save(os.path.join(save_path, '%04d_trans.npy' % timestamp), lidar_t)
+    return pred_np, gt_np
 
 def depth_metric(depth_items, grid_conf):
     # depth logdit: [N, D, H, W]

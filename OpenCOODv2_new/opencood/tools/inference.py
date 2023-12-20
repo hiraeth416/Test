@@ -12,11 +12,20 @@ import torch
 import open3d as o3d
 from torch.utils.data import DataLoader, Subset
 import numpy as np
+import sys
+
+# import opencood.hypes_yaml.yaml_parser as yaml_parser
 import opencood.hypes_yaml.yaml_utils as yaml_utils
 from opencood.tools import train_utils, inference_utils
 from opencood.data_utils.datasets import build_dataset
 from opencood.utils import eval_utils
 from opencood.visualization import vis_utils, my_vis, simple_vis
+
+
+from tqdm import tqdm
+from tqdm.contrib import tenumerate
+from tqdm.auto import trange
+
 from opencood.utils.common_utils import update_dict
 import matplotlib.pyplot as plt
 torch.multiprocessing.set_sharing_strategy('file_system')
@@ -25,6 +34,8 @@ def test_parser():
     parser = argparse.ArgumentParser(description="synthetic data generation")
     parser.add_argument('--model_dir', type=str, required=True,
                         help='Continued training path')
+    parser.add_argument('--hypes_yaml', type=str, required=True,
+                        help='hypes yaml path')
     parser.add_argument('--fusion_method', type=str,
                         default='intermediate',
                         help='no, no_w_uncertainty, late, early or intermediate')
@@ -35,6 +46,8 @@ def test_parser():
                              'in npy file')
     parser.add_argument('--range', type=str, default="140.8,40",
                         help="detection range is [-140.8,+140.8m, -40m, +40m]")
+    parser.add_argument('--delay_time', default="-1", type=int, help="latency time")
+    
     parser.add_argument('--no_score', action='store_true',
                         help="whether print the score of prediction")
     parser.add_argument('--note', default="", type=str, help="any other thing?")
@@ -67,9 +80,16 @@ def main():
     opt = test_parser()
 
     assert opt.fusion_method in ['late', 'early', 'intermediate', 'no', 'no_w_uncertainty', 'single'] 
-
-    hypes = yaml_utils.load_yaml(None, opt)
-    print("model_dir:", opt.model_dir)
+    
+    if opt.hypes_yaml:
+        hypes = yaml_utils.load_yaml(None, opt)
+    else:
+        hypes = yaml_utils.load_yaml(opt.hypes_yaml, None)
+    if opt.delay_time != -1:
+        hypes['time_delay'] = opt.delay_time
+        print(f"delay time: {hypes['time_delay']}")
+    else:
+        pass
 
     print("model:", hypes['model']['core_method'])
     hypes.update({'sample_method': opt.sample_method})
@@ -278,32 +298,32 @@ def main():
 
             if opt.fusion_method == 'late':
                 infer_result = inference_utils.inference_late_fusion(batch_data,
-                                                        model,
-                                                        opencood_dataset)
+                                                                     model,
+                                                                     opencood_dataset)
             elif opt.fusion_method == 'early':
                 infer_result = inference_utils.inference_early_fusion(batch_data,
-                                                        model,
-                                                        opencood_dataset)
+                                                                      model,
+                                                                      opencood_dataset)
             elif opt.fusion_method == 'intermediate':
                 infer_result = inference_utils.inference_intermediate_fusion(batch_data,
-                                                                model,
-                                                                opencood_dataset)
+                                                                             model,
+                                                                             opencood_dataset)
             elif opt.fusion_method == 'no':
                 infer_result = inference_utils.inference_no_fusion(batch_data,
-                                                                model,
-                                                                opencood_dataset)
+                                                                   model,
+                                                                   opencood_dataset)
             elif opt.fusion_method == 'no_w_uncertainty':
                 infer_result = inference_utils.inference_no_fusion_w_uncertainty(batch_data,
-                                                                model,
-                                                                opencood_dataset)
+                                                                                 model,
+                                                                                 opencood_dataset)
             elif opt.fusion_method == 'single':
                 infer_result = inference_utils.inference_no_fusion(batch_data,
-                                                                model,
-                                                                opencood_dataset,
-                                                                single_gt=True)
+                                                                   model,
+                                                                   opencood_dataset,
+                                                                   single_gt=True)
             else:
                 raise NotImplementedError('Only single, no, no_w_uncertainty, early, late and intermediate'
-                                        'fusion is supported.')
+                                          'fusion is supported.')
 
             pred_box_tensor = infer_result['pred_box_tensor']
             gt_box_tensor = infer_result['gt_box_tensor']
@@ -350,11 +370,10 @@ def main():
                 if not os.path.exists(npy_save_path):
                     os.makedirs(npy_save_path)
                 inference_utils.save_prediction_gt(pred_box_tensor,
-                                                gt_box_tensor,
-                                                batch_data['ego'][
-                                                    'origin_lidar'][0],
-                                                i,
-                                                npy_save_path)
+                                                   gt_box_tensor,
+                                                   batch_data['ego']['origin_lidar'][0],
+                                                   i,
+                                                   npy_save_path)
 
             if not opt.no_score:
                 infer_result.update({'score_tensor': pred_score})

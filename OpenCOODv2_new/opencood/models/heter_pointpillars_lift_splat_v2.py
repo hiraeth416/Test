@@ -227,7 +227,7 @@ class HeterPointPillarsLiftSplatV2(nn.Module):
             image_inputs_dict = data_dict['image_inputs']
             x, rots, trans, intrins, post_rots, post_trans = \
                 image_inputs_dict['imgs'], image_inputs_dict['rots'], image_inputs_dict['trans'], image_inputs_dict['intrins'], image_inputs_dict['post_rots'], image_inputs_dict['post_trans']
-            camera_feature_2d, depth_items = self.camera_encoder.get_voxels(x, rots, trans, intrins, post_rots, post_trans)  # ��ͼ��ת����BEV�£�x: B x C x H x W (4 x 64 x H x W)
+            camera_feature_2d, depth_items = self.camera_encoder.get_voxels(x, rots, trans, intrins, post_rots, post_trans)  # 将图像转换到BEV下，x: B x C x H x W (4 x 64 x H x W)
             camera_feature_2d = self.camera_backbone.get_layer_i_feature(camera_feature_2d, 0)
             # camera_feature_2d_before_fusion_np = camera_feature_2d.detach().cpu().numpy()
             camera_feature_2d = self.camera_aligner(camera_feature_2d)
@@ -331,7 +331,6 @@ class HeterPointPillarsLiftSplatV2(nn.Module):
 
         Then we omit self.backbone's first layer.
         """
-        
         feature_list = [heter_feature_2d]
         for i in range(1, len(self.fusion_net)):
             heter_feature_2d = self.backbone.get_layer_i_feature(heter_feature_2d, layer_i=i)
@@ -356,12 +355,8 @@ class HeterPointPillarsLiftSplatV2(nn.Module):
                 fused_feature_list.append(fuse_module(feature_list[i], record_len, t_matrix, lidar_agent_indicator))
             else:
                 fused_feature_list.append(fuse_module(feature_list[i], record_len, t_matrix))
-        
-        print()
         fused_feature = self.backbone.decode_multiscale_feature(fused_feature_list)
         
-        #print("fused_feature_shape: ", fused_feature.shape)
-
         if self.shrink_flag:
             fused_feature = self.shrink_conv(fused_feature)
 

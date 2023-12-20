@@ -68,7 +68,7 @@ def test_parser():
 
 def main():
     opt = test_parser()
-
+    opt.result_name = opt.model_name
     assert opt.fusion_method in ['late', 'early', 'intermediate', 'no', 'no_w_uncertainty', 'single'] 
 
     # hypes = yaml_utils.load_yaml(None, opt)
@@ -231,14 +231,14 @@ def main():
     
 
     # add noise to pose.
-    #pos_std_list = [0, 0.2, 0.4, 0.6]
-    #rot_std_list = [0, 0.2, 0.4, 0.6]
+    pos_std_list = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
+    rot_std_list = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
     pos_mean_list = [0, 0, 0, 0, 0, 0, 0]
     rot_mean_list = [0, 0, 0, 0, 0, 0, 0]
     # pos_std_list = [opt.noise]
     # rot_std_list = [opt.noise]
-    pos_std_list = [0.8, 1.0, 1.5]
-    rot_std_list = [0.8, 1.0, 1.5]
+    # pos_std_list = [0.8, 1.0, 1.5]
+    # rot_std_list = [0.8, 1.0, 1.5]
     # pos_mean_list = [0]
     # rot_mean_list = [0]
 
@@ -453,7 +453,7 @@ def main():
             if not os.path.exists(detection_path):
                 os.makedirs(detection_path)
                 
-            with open(os.path.join(opt.model_dir,'detection_noise', '{}_noise.txt'.format(opt.result_name)), 'a+') as f:
+            with open(os.path.join(opt.model_dir,'detection_noise', '{}_noise.txt'.format(opt.model_name)), 'a+') as f:
                 f.write('ap30: {:.04f} ap50: {:.04f} ap70: {:.04f} comm_thre: {:.04f} comm_rate: {:.06f} pos_std: {:.04f} rot_std: {:.04f}\n'.format(ap30, ap50, ap70, opt.comm_thre, comm_rates, pos_std, rot_std))
             
             AP30.append(ap30)
