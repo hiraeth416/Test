@@ -25,7 +25,6 @@ class OPV2VBaseDataset(Dataset):
 
         self.pre_processor = build_preprocessor(params["preprocess"], train)
         self.post_processor = build_postprocessor(params["postprocess"], train)
-<<<<<<< HEAD
         self.data_augmentor = DataAugmentor(params['data_augment'],
                                             train)
 
@@ -33,12 +32,11 @@ class OPV2VBaseDataset(Dataset):
             self.tau = params['time_delay']
         else:
             self.tau = 0
-=======
+            
         if 'data_augment' in params: # late and early
             self.data_augmentor = DataAugmentor(params['data_augment'], train)
         else: # intermediate
             self.data_augmentor = None
->>>>>>> origin/lsf
 
         if self.train:
             root_dir = params['root_dir']
@@ -80,10 +78,6 @@ class OPV2VBaseDataset(Dataset):
         scenario_folders = sorted([os.path.join(root_dir, x)
                                    for x in os.listdir(root_dir) if
                                    os.path.isdir(os.path.join(root_dir, x))])
-<<<<<<< HEAD
-=======
-
->>>>>>> origin/lsf
         self.scenario_folders = scenario_folders
 
         self.reinitialize()
@@ -94,10 +88,7 @@ class OPV2VBaseDataset(Dataset):
         # lidar: path, cameras:list of path}}}}
         self.scenario_database = OrderedDict()
         self.len_record = []
-<<<<<<< HEAD
-=======
         #print("HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
->>>>>>> origin/lsf
 
         # loop over all scenarios
         for (i, scenario_folder) in enumerate(self.scenario_folders):
@@ -116,14 +107,6 @@ class OPV2VBaseDataset(Dataset):
                         os.path.join(scenario_folder, x))])
             assert len(cav_list) > 0
 
-<<<<<<< HEAD
-            # roadside unit data's id is always negative, so here we want to
-            # make sure they will be in the end of the list as they shouldn't
-            # be ego vehicle.
-            if int(cav_list[0]) < 0:
-                cav_list = cav_list[1:] + [cav_list[0]]
-
-=======
             """
             roadside unit data's id is always negative, so here we want to
             make sure they will be in the end of the list as they shouldn't
@@ -139,7 +122,6 @@ class OPV2VBaseDataset(Dataset):
                 scenario_name = scenario_folder.split("/")[-1]
                 cav_list = self.adaptor.reorder_cav_list(cav_list, scenario_name)
 
->>>>>>> origin/lsf
 
             # loop over all CAV data
             for (j, cav_id) in enumerate(cav_list):
@@ -155,15 +137,8 @@ class OPV2VBaseDataset(Dataset):
                     sorted([os.path.join(cav_path, x)
                             for x in os.listdir(cav_path) if
                             x.endswith('.yaml') and 'additional' not in x])
-<<<<<<< HEAD
                  # this timestamp is not ready
                 yaml_files = [x for x in yaml_files if not ("2021_08_20_21_10_24" in x and "000265" in x)]
-=======
-                
-                # this timestamp is not ready
-                yaml_files = [x for x in yaml_files if not ("2021_08_20_21_10_24" in x and "000265" in x)]
-
->>>>>>> origin/lsf
                 timestamps = self.extract_timestamps(yaml_files)
 
                 for timestamp in timestamps:
@@ -176,11 +151,7 @@ class OPV2VBaseDataset(Dataset):
                     camera_files = self.find_camera_files(cav_path, 
                                                 timestamp)
                     depth_files = self.find_camera_files(cav_path, 
-<<<<<<< HEAD
-                                                timestamp,sensor="depth")
-=======
                                                 timestamp, sensor="depth")
->>>>>>> origin/lsf
 
                     self.scenario_database[i][cav_id][timestamp]['yaml'] = \
                         yaml_file
@@ -191,8 +162,6 @@ class OPV2VBaseDataset(Dataset):
                     self.scenario_database[i][cav_id][timestamp]['depths'] = \
                         depth_files
 
-<<<<<<< HEAD
-=======
                     #print("___________________________________________________________________")
                     #print(getattr(self, "heterogeneous", False))
                     if getattr(self, "heterogeneous", False):
@@ -207,7 +176,6 @@ class OPV2VBaseDataset(Dataset):
                             self.adaptor.switch_lidar_channels(cav_modality, lidar_file)
 
 
->>>>>>> origin/lsf
                    # load extra data
                     for file_extension in self.add_data_extension:
                         file_name = \
@@ -223,20 +191,12 @@ class OPV2VBaseDataset(Dataset):
                 if j == 0:
                     # we regard the agent with the minimum id as the ego
                     self.scenario_database[i][cav_id]['ego'] = True
-<<<<<<< HEAD
                     num_ego_timestamps = len(timestamps) - (self.tau + 1 - 1)		# 从第 tau+k 个往后, store 0 时刻的 time stamp
                     if not self.len_record:
                         self.len_record.append(num_ego_timestamps)
                     else:
                         prev_last = self.len_record[-1]
                         self.len_record.append(prev_last + num_ego_timestamps)
-=======
-                    if not self.len_record:
-                        self.len_record.append(len(timestamps))
-                    else:
-                        prev_last = self.len_record[-1]
-                        self.len_record.append(prev_last + len(timestamps))
->>>>>>> origin/lsf
                 else:
                     self.scenario_database[i][cav_id]['ego'] = False
 
@@ -267,7 +227,6 @@ class OPV2VBaseDataset(Dataset):
         # check the timestamp index
         timestamp_index = idx if scenario_index == 0 else \
             idx - self.len_record[scenario_index - 1]
-<<<<<<< HEAD
         delayed_timestamp_key = self.return_timestamp_key(scenario_database,
                                                             timestamp_index)
         # current frame, wo delay
@@ -284,29 +243,16 @@ class OPV2VBaseDataset(Dataset):
                 input_timestamp_key = curr_timestamp_key
             else:
                 input_timestamp_key = delayed_timestamp_key
-=======
-        # retrieve the corresponding timestamp key
-        timestamp_key = self.return_timestamp_key(scenario_database,
-                                                  timestamp_index)
-        data = OrderedDict()
-        # load files for all CAVs
-        for cav_id, cav_content in scenario_database.items():
->>>>>>> origin/lsf
             data[cav_id] = OrderedDict()
             data[cav_id]['ego'] = cav_content['ego']
 
             # load param file: json is faster than yaml
-<<<<<<< HEAD
             json_file = cav_content[curr_timestamp_key]['yaml'].replace("yaml", "json")
-=======
-            json_file = cav_content[timestamp_key]['yaml'].replace("yaml", "json")
->>>>>>> origin/lsf
             if os.path.exists(json_file):
                 with open(json_file, "r") as f:
                     data[cav_id]['params'] = json.load(f)
             else:
                 data[cav_id]['params'] = \
-<<<<<<< HEAD
                     load_yaml(cav_content[curr_timestamp_key]['yaml'])
                 
             if cav_content['ego']:
@@ -324,13 +270,6 @@ class OPV2VBaseDataset(Dataset):
             # data[cav_id]['params']['lidar_pose'] = 
             # load camera file: hdf5 is faster than png
             hdf5_file = cav_content[input_timestamp_key]['cameras'][0].replace("camera0.png", "imgs.hdf5")
-=======
-                    load_yaml(cav_content[timestamp_key]['yaml'])
-
-            # load camera file: hdf5 is faster than png
-            hdf5_file = cav_content[timestamp_key]['cameras'][0].replace("camera0.png", "imgs.hdf5")
-
->>>>>>> origin/lsf
             if os.path.exists(hdf5_file):
                 with h5py.File(hdf5_file, "r") as f:
                     data[cav_id]['camera_data'] = []
@@ -341,37 +280,19 @@ class OPV2VBaseDataset(Dataset):
             else:
                 if self.load_camera_file:
                     data[cav_id]['camera_data'] = \
-<<<<<<< HEAD
                         load_camera_data(cav_content[input_timestamp_key]['cameras'])
                 if self.load_depth_file:
                     data[cav_id]['depth_data'] = \
                         load_camera_data(cav_content[input_timestamp_key]['depths']) 
-=======
-                        load_camera_data(cav_content[timestamp_key]['cameras'])
-                if self.load_depth_file:
-                    data[cav_id]['depth_data'] = \
-                        load_camera_data(cav_content[timestamp_key]['depths']) 
->>>>>>> origin/lsf
 
             # load lidar file
             if self.load_lidar_file or self.visualize:
                 data[cav_id]['lidar_np'] = \
-<<<<<<< HEAD
                     pcd_utils.pcd_to_np(cav_content[input_timestamp_key]['lidar'])
-=======
-                    pcd_utils.pcd_to_np(cav_content[timestamp_key]['lidar'])
-
-            
-            if getattr(self, "heterogeneous", False):
-                data[cav_id]['modality_name'] = cav_content[timestamp_key]['modality_name']
-            
-            
->>>>>>> origin/lsf
 
             for file_extension in self.add_data_extension:
                 # if not find in the current directory
                 # go to additional folder
-<<<<<<< HEAD
                 if not os.path.exists(cav_content[input_timestamp_key][file_extension]):
                     cav_content[input_timestamp_key][file_extension] = cav_content[input_timestamp_key][file_extension].replace("train","additional/train")
                     cav_content[input_timestamp_key][file_extension] = cav_content[input_timestamp_key][file_extension].replace("validate","additional/validate")
@@ -383,20 +304,6 @@ class OPV2VBaseDataset(Dataset):
                 else:
                     data[cav_id][file_extension] = \
                         cv2.imread(cav_content[input_timestamp_key][file_extension])
-=======
-                if not os.path.exists(cav_content[timestamp_key][file_extension]):
-                    cav_content[timestamp_key][file_extension] = cav_content[timestamp_key][file_extension].replace("train","additional/train")
-                    cav_content[timestamp_key][file_extension] = cav_content[timestamp_key][file_extension].replace("validate","additional/validate")
-                    cav_content[timestamp_key][file_extension] = cav_content[timestamp_key][file_extension].replace("test","additional/test")
-                    
-                if '.yaml' in file_extension:
-                    data[cav_id][file_extension] = \
-                        load_yaml(cav_content[timestamp_key][file_extension])
-                else:
-                    data[cav_id][file_extension] = \
-                        cv2.imread(cav_content[timestamp_key][file_extension])
-
->>>>>>> origin/lsf
 
         return data
 
@@ -454,13 +361,9 @@ class OPV2VBaseDataset(Dataset):
             The timestamp key saved in the cav dictionary.
         """
         # get all timestamp keys
-<<<<<<< HEAD
         # print(list(scenario_database.items())[0])
         timestamp_keys = list(scenario_database.items())[0][1]
 
-=======
-        timestamp_keys = list(scenario_database.items())[0][1]
->>>>>>> origin/lsf
         # retrieve the correct index
         timestamp_key = list(timestamp_keys.items())[timestamp_index][0]
 

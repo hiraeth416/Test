@@ -280,10 +280,6 @@ def getLateheterFusionDataset(cls):
                 'cav_num': cav_num,
                 'agent_modality_list': agent_modality_list
             })
-<<<<<<< HEAD
-            print(cav_id_list)
-=======
->>>>>>> origin/lsf
             processed_data_dict['ego'].update({'sample_idx': idx,
                                                 'cav_id_list': cav_id_list})
 

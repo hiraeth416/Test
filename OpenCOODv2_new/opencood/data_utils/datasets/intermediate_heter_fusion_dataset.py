@@ -47,10 +47,7 @@ def getIntermediateheterFusionDataset(cls):
         def __init__(self, params, visualize, train=True):
             super().__init__(params, visualize, train)
             # intermediate and supervise single
-<<<<<<< HEAD
             random.seed(303)
-=======
->>>>>>> origin/lsf
             self.supervise_single = True if ('supervise_single' in params['model']['args'] and params['model']['args']['supervise_single']) \
                                         else False
             self.proj_first = False if 'proj_first' not in params['fusion']['args']\
@@ -100,27 +97,23 @@ def getIntermediateheterFusionDataset(cls):
                 self.stage1_result_path = params['box_align']['train_result'] if train else params['box_align']['val_result']
                 self.stage1_result = read_json(self.stage1_result_path)
                 self.box_align_args = params['box_align']['args']
-<<<<<<< HEAD
-            
-            if 'min_cav_num' in params.keys():
-              self.min_cav_num=params['min_cav_num']
-            else:
-              self.min_cav_num=1
-            if 'max_cav_num' in params.keys():
-              self.max_cav_num=params['max_cav_num']
-            else:
-              self.max_cav_num=50
-            assert self.min_cav_num == 10
-            assert self.max_cav_num == 10
-            if self.min_cav_num==10 and self.max_cav_num ==10 :
-                # print("loading cav_id assignment")
-                # load from json
-                self.cav_id_assignment=read_json("cav_id_assignment_train.json")
-                # print(self.cav_id_assignment)
-=======
                 
-
->>>>>>> origin/lsf
+            if self.params['fusion']['dataset'] == 'opv2vh':
+                if 'min_cav_num' in params.keys():
+                    self.min_cav_num=params['min_cav_num']
+                else:
+                    self.min_cav_num=1
+                if 'max_cav_num' in params.keys():
+                    self.max_cav_num=params['max_cav_num']
+                else:
+                    self.max_cav_num=50
+                assert self.min_cav_num == 10
+                assert self.max_cav_num == 10
+                if self.min_cav_num==10 and self.max_cav_num ==10 :
+                    # print("loading cav_id assignment")
+                    # load from json
+                    self.cav_id_assignment=read_json("cav_id_assignment_train.json")
+                    # print(self.cav_id_assignment)
 
         def get_item_single_car(self, selected_cav_base, ego_cav_base):
             """
@@ -347,13 +340,9 @@ def getIntermediateheterFusionDataset(cls):
 
 
         def __getitem__(self, idx):
-<<<<<<< HEAD
-            base_data_dict = self.retrieve_base_data(idx)
-=======
             base_data_dict= self.retrieve_base_data(idx)
             if base_data_dict == None:
                 return None
->>>>>>> origin/lsf
             base_data_dict = add_noise_data_dict(base_data_dict,self.params['noise_setting'])
 
             processed_data_dict = OrderedDict()
@@ -363,10 +352,6 @@ def getIntermediateheterFusionDataset(cls):
             ego_lidar_pose = []
             ego_cav_base = None
 
-<<<<<<< HEAD
-
-=======
->>>>>>> origin/lsf
             # first find the ego vehicle's lidar pose
             for cav_id, cav_content in base_data_dict.items():
                 if cav_content['ego']:
@@ -396,10 +381,7 @@ def getIntermediateheterFusionDataset(cls):
             lidar_pose_list = []
             lidar_pose_clean_list = []
             cav_id_list = []
-<<<<<<< HEAD
             cav_id_list_new = []
-=======
->>>>>>> origin/lsf
             projected_lidar_clean_list = [] # disconet
 
             if self.visualize or self.kd_flag:
@@ -408,118 +390,72 @@ def getIntermediateheterFusionDataset(cls):
             
           
             # loop over all CAVs to process information
-<<<<<<< HEAD
             #####
             cav_num=0
-            if self.params['fusion']['dataset'] == 'dairv2x':
-                for cav_id in base_data_dict.keys():    
-                    cav_id_list.append(cav_id)
-                # if len(cav_id_list)==1:
-                #     return None
-            else:
+            if self.params['fusion']['dataset'] == 'opv2vh':
+
                 cav_id_list = self.cav_id_assignment[str(idx)]
-            
-            
-            if cav_id_list is None:
-                return None
-            new_base_data_dict = {}
-            for cav_id in cav_id_list:
-                if cav_id not in base_data_dict.keys():
-                    cav_id_list.remove(cav_id)
-                else:
-                    cav_id_list_new.append(cav_id)
-            cav_id_list = cav_id_list_new
-            if cav_id_list is None:
-                return None
-            # print('len(cav_id_list): ',len(cav_id_list))
-            for cav_id in cav_id_list:
-                # print(base_data_dict.keys())
-                selected_cav_base = base_data_dict[cav_id]
-                lidar_pose_clean_list.append(selected_cav_base['params']['lidar_pose_clean'])
-                lidar_pose_list.append(selected_cav_base['params']['lidar_pose'])
-                new_base_data_dict.update({cav_id: selected_cav_base})
-            base_data_dict = new_base_data_dict
+                if cav_id_list is None:
+                    return None
+                new_base_data_dict = {}
+                for cav_id in cav_id_list:
+                    if cav_id not in base_data_dict.keys():
+                        cav_id_list.remove(cav_id)
+                    else:
+                        cav_id_list_new.append(cav_id)
+                cav_id_list = cav_id_list_new
+                if cav_id_list is None:
+                    return None
+                # print('len(cav_id_list): ',len(cav_id_list))
+                for cav_id in cav_id_list:
+                    # print(base_data_dict.keys())
+                    selected_cav_base = base_data_dict[cav_id]
+                    lidar_pose_clean_list.append(selected_cav_base['params']['lidar_pose_clean'])
+                    lidar_pose_list.append(selected_cav_base['params']['lidar_pose'])
+                    new_base_data_dict.update({cav_id: selected_cav_base})
+                base_data_dict = new_base_data_dict
 
-            
-=======
-            for cav_id, selected_cav_base in base_data_dict.items():
-                """
-                #Added here
-                #seperate the pointcloud
-                #print(" ")
-                #print("----------------------------------------------------------------------------------")
-                #print("begin")
-                #print("idx:", idx)
-                #print("cavid:", cav_id)           
-                selected_cav_processed = self.get_item_single_car(selected_cav_base, ego_cav_base)
-                inputlidar = selected_cav_processed['projected_lidar']
-                inputlidar = inputlidar[:,0:2]
-                inputlidar = torch.from_numpy(inputlidar)
-                box = selected_cav_processed['object_bbx_center']
-                box = torch.from_numpy(box)
-                #print(type(box))
-                #print('point_shape', inputlidar.shape)
-                #print('shape:', box.ndim)
-                #box=boxtensor[:,:4,:2].clone().detach()
-                in_polygon,out_polygon,in_which_box = self.point_in_polygon(inputlidar,box)
-                point_num = (in_polygon==True).sum()
-                #print("in_which_box:", in_which_box)
-                print("point_num:", point_num)
-                self.pointnum = point_num
-                plt.scatter(point_num,1, s=1)
+            else:
+                for cav_id, selected_cav_base in base_data_dict.items():
+                    # check if the cav is within the communication range with ego
+                    distance = \
+                        math.sqrt((selected_cav_base['params']['lidar_pose'][0] -
+                                ego_lidar_pose[0]) ** 2 + (
+                                        selected_cav_base['params'][
+                                            'lidar_pose'][1] - ego_lidar_pose[
+                                            1]) ** 2)
+
+                    # if distance is too far, we will just skip this agent
+                    if distance > self.params['comm_range']:
+                        exclude_agent.append(cav_id)
+                        continue
+                    
+                    # if modality not match
+                    if self.adaptor.unmatched_modality(selected_cav_base['modality_name']):
+                        exclude_agent.append(cav_id)
+                        continue
+
+                    lidar_pose_clean_list.append(selected_cav_base['params']['lidar_pose_clean'])
+                    lidar_pose_list.append(selected_cav_base['params']['lidar_pose']) # 6dof pose
+                    cav_id_list.append(cav_id)   
                 
-                #with open(os.path.join(self.params['model_dir'], 'result_pointnum.txt'), 'a+') as f:
-                #    f.write('%d\n'%(point_num))
-
-                
-                #print("----------------------------------------------------------------------------------")
-                #print("num", num)
-                #print("----------------------------------------------------------------------------------")
-                
-                #print("end")
-                #print("------------------------------------------------------------------------------------")
-                #print(" ")     
-                """
-                # check if the cav is within the communication range with ego
-                distance = \
-                    math.sqrt((selected_cav_base['params']['lidar_pose'][0] -
-                            ego_lidar_pose[0]) ** 2 + (
-                                    selected_cav_base['params'][
-                                        'lidar_pose'][1] - ego_lidar_pose[
-                                        1]) ** 2)
-
-                # if distance is too far, we will just skip this agent
-                if distance > self.params['comm_range']:
-                    exclude_agent.append(cav_id)
-                    continue
-                
-                # if modality not match
-                if self.adaptor.unmatched_modality(selected_cav_base['modality_name']):
-                    exclude_agent.append(cav_id)
-                    continue
-
-                lidar_pose_clean_list.append(selected_cav_base['params']['lidar_pose_clean'])
-                lidar_pose_list.append(selected_cav_base['params']['lidar_pose']) # 6dof pose
-                cav_id_list.append(cav_id)   
+                #draW the chart
+                #save_dir = self.params['model_dir']
             
-            #draW the chart
-            #save_dir = self.params['model_dir']
-           
-            #plt.hist(num,bins=3)
-            #plt.title("data analyze")
-            #plt.xlabel("point_num")
-            #plt.ylabel("percentage")
-            #plt.savefig(os.path.join(save_dir, 'chart%d.png'% (idx)) )
-            
-            
+                #plt.hist(num,bins=3)
+                #plt.title("data analyze")
+                #plt.xlabel("point_num")
+                #plt.ylabel("percentage")
+                #plt.savefig(os.path.join(save_dir, 'chart%d.png'% (idx)) )
+                
+                
 
-            if len(cav_id_list) == 0:
-                return None
+                if len(cav_id_list) == 0:
+                    return None
 
-            for cav_id in exclude_agent:
-                base_data_dict.pop(cav_id)
+                for cav_id in exclude_agent:
+                    base_data_dict.pop(cav_id)
 
->>>>>>> origin/lsf
             ########## Updated by Yifan Lu 2022.1.26 ############
             # box align to correct pose.
             # stage1_content contains all agent. Even out of comm range.
@@ -549,11 +485,6 @@ def getIntermediateheterFusionDataset(cls):
                         cur_agnet_pose[:,[0,1,4]] = refined_pose 
 
                         for i, cav_id in enumerate(cav_id_list):
-<<<<<<< HEAD
-                            # if cav_id not in base_data_dict:
-                            #     continue
-=======
->>>>>>> origin/lsf
                             lidar_pose_list[i] = cur_agnet_pose[i].tolist()
                             base_data_dict[cav_id]['params']['lidar_pose'] = cur_agnet_pose[i].tolist()
 
@@ -569,17 +500,8 @@ def getIntermediateheterFusionDataset(cls):
             
             # merge preprocessed features from different cavs into the same dict
             cav_num = len(cav_id_list)
-<<<<<<< HEAD
-
             
             for _i, cav_id in enumerate(cav_id_list):
-                # if cav_id not in base_data_dict:
-                #     cav_id_list.remove(cav_id)
-                #     continue
-=======
-            
-            for _i, cav_id in enumerate(cav_id_list):
->>>>>>> origin/lsf
                 selected_cav_base = base_data_dict[cav_id]
                 modality_name = selected_cav_base['modality_name']
                 sensor_type = self.sensor_type_dict[selected_cav_base['modality_name']]
@@ -598,10 +520,6 @@ def getIntermediateheterFusionDataset(cls):
                 object_stack.append(selected_cav_processed['object_bbx_center'])
                 object_id_stack += selected_cav_processed['object_ids']
 
-<<<<<<< HEAD
-=======
-
->>>>>>> origin/lsf
                 if sensor_type == "lidar":
                     eval(f"input_list_{modality_name}").append(selected_cav_processed[f"processed_features_{modality_name}"])
                 elif sensor_type == "camera":
@@ -619,11 +537,6 @@ def getIntermediateheterFusionDataset(cls):
                     single_label_list.append(selected_cav_processed['single_label_dict'])
                     single_object_bbx_center_list.append(selected_cav_processed['single_object_bbx_center'])
                     single_object_bbx_mask_list.append(selected_cav_processed['single_object_bbx_mask'])
-<<<<<<< HEAD
-            
-=======
-
->>>>>>> origin/lsf
             # generate single view GT label
             if self.supervise_single or self.heterogeneous:
                 single_label_dicts = self.post_processor.collate_batch(single_label_list)
@@ -647,11 +560,6 @@ def getIntermediateheterFusionDataset(cls):
             
             # exculude all repetitve objects, DAIR-V2X
             if self.params['fusion']['dataset'] == 'dairv2x':
-<<<<<<< HEAD
-                # if object_stack is None or len(object_stack) == 0:
-                #     return None
-=======
->>>>>>> origin/lsf
                 if len(object_stack) == 1:
                     object_stack = object_stack[0]
                 else:
@@ -683,12 +591,9 @@ def getIntermediateheterFusionDataset(cls):
                 object_id_stack = np.arange(object_stack.shape[0])
             else:
                 # exclude all repetitive objects, OPV2V-H
-<<<<<<< HEAD
                 if object_stack is None or len(object_stack) == 0:
                     return None
                 # print("object_stack",object_stack)
-=======
->>>>>>> origin/lsf
                 unique_indices = \
                     [object_id_stack.index(x) for x in set(object_id_stack)]
                 object_stack = np.vstack(object_stack)
@@ -700,10 +605,7 @@ def getIntermediateheterFusionDataset(cls):
             mask = np.zeros(self.params['postprocess']['max_num'])
             object_bbx_center[:object_stack.shape[0], :] = object_stack
             mask[:object_stack.shape[0]] = 1
-<<<<<<< HEAD
-=======
             
->>>>>>> origin/lsf
             for modality_name in self.modality_name_list:
                 if self.sensor_type_dict[modality_name] == "lidar":
                     merged_feature_dict = merge_features_to_dict(eval(f"input_list_{modality_name}")) 
@@ -711,15 +613,9 @@ def getIntermediateheterFusionDataset(cls):
                 elif self.sensor_type_dict[modality_name] == "camera":
                     merged_image_inputs_dict = merge_features_to_dict(eval(f"input_list_{modality_name}"), merge='stack')
                     processed_data_dict['ego'].update({f'input_{modality_name}': merged_image_inputs_dict}) # maybe None
-<<<<<<< HEAD
-                    
-            processed_data_dict['ego'].update({'agent_modality_list': agent_modality_list})
-            
-=======
 
             processed_data_dict['ego'].update({'agent_modality_list': agent_modality_list})
 
->>>>>>> origin/lsf
             # generate targets label
             label_dict = \
                 self.post_processor.generate_label(
@@ -737,12 +633,6 @@ def getIntermediateheterFusionDataset(cls):
                 'pairwise_t_matrix': pairwise_t_matrix,
                 'lidar_poses_clean': lidar_poses_clean,
                 'lidar_poses': lidar_poses})
-<<<<<<< HEAD
-            
-            
-=======
-
->>>>>>> origin/lsf
 
             if self.visualize:
                 processed_data_dict['ego'].update({'origin_lidar':
@@ -789,11 +679,8 @@ def getIntermediateheterFusionDataset(cls):
                 object_bbx_mask_single = []
 
             for i in range(len(batch)):
-<<<<<<< HEAD
                 if batch[i] is None:
                     continue
-=======
->>>>>>> origin/lsf
                 ego_dict = batch[i]['ego']
                 object_bbx_center.append(ego_dict['object_bbx_center'])
                 object_bbx_mask.append(ego_dict['object_bbx_mask'])
@@ -801,15 +688,8 @@ def getIntermediateheterFusionDataset(cls):
                 lidar_pose_list.append(ego_dict['lidar_poses']) # ego_dict['lidar_pose'] is np.ndarray [N,6]
                 lidar_pose_clean_list.append(ego_dict['lidar_poses_clean'])
 
-<<<<<<< HEAD
-    
                 for modality_name in self.modality_name_list:
                     if ego_dict[f'input_{modality_name}'] is not None:
-                        
-=======
-                for modality_name in self.modality_name_list:
-                    if ego_dict[f'input_{modality_name}'] is not None:
->>>>>>> origin/lsf
                         eval(f"inputs_list_{modality_name}").append(ego_dict[f'input_{modality_name}']) # OrderedDict() if empty?
 
                 agent_modality_list.extend(ego_dict['agent_modality_list'])
@@ -831,37 +711,14 @@ def getIntermediateheterFusionDataset(cls):
                     targets_single.append(ego_dict['single_label_dict_torch']['targets'])
                     object_bbx_center_single.append(ego_dict['single_object_bbx_center_torch'])
                     object_bbx_mask_single.append(ego_dict['single_object_bbx_mask_torch'])
-<<<<<<< HEAD
             
             if len(object_bbx_center) == 0:
                 return None
-=======
-
->>>>>>> origin/lsf
 
             # convert to numpy, (B, max_num, 7)
             object_bbx_center = torch.from_numpy(np.array(object_bbx_center))
             object_bbx_mask = torch.from_numpy(np.array(object_bbx_mask))
 
-<<<<<<< HEAD
-            
-            # 2023.2.5
-            for modality_name in self.modality_name_list:
-                
-                if len(eval(f"inputs_list_{modality_name}")) != 0:
-                    
-                    if self.sensor_type_dict[modality_name] == "lidar":
-                        
-                        merged_feature_dict = merge_features_to_dict(eval(f"inputs_list_{modality_name}"))
-                        processed_lidar_torch_dict = eval(f"self.pre_processor_{modality_name}").collate_batch(merged_feature_dict)
-                        output_dict['ego'].update({f'inputs_{modality_name}': processed_lidar_torch_dict})
-                        
-                    elif self.sensor_type_dict[modality_name] == "camera":
-                        
-                        merged_image_inputs_dict = merge_features_to_dict(eval(f"inputs_list_{modality_name}"), merge='cat')
-                        output_dict['ego'].update({f'inputs_{modality_name}': merged_image_inputs_dict})
-                        
-=======
 
             # 2023.2.5
             for modality_name in self.modality_name_list:
@@ -874,7 +731,6 @@ def getIntermediateheterFusionDataset(cls):
                     elif self.sensor_type_dict[modality_name] == "camera":
                         merged_image_inputs_dict = merge_features_to_dict(eval(f"inputs_list_{modality_name}"), merge='cat')
                         output_dict['ego'].update({f'inputs_{modality_name}': merged_image_inputs_dict})
->>>>>>> origin/lsf
 
 
             output_dict['ego'].update({"agent_modality_list": agent_modality_list})
@@ -995,12 +851,6 @@ def getIntermediateheterFusionDataset(cls):
             pred_box_tensor, pred_score = \
                 self.post_processor.post_process(data_dict, output_dict)
             gt_box_tensor = self.post_processor.generate_gt_bbx(data_dict)
-<<<<<<< HEAD
-            # point_num = self.pointnum
-            return pred_box_tensor, pred_score, gt_box_tensor
-
-            
-=======
             return pred_box_tensor, pred_score, gt_box_tensor
 
         
@@ -1015,7 +865,6 @@ def getIntermediateheterFusionDataset(cls):
             )
             return pred_box_tensor, pred_score, gt_box_tensor
         
->>>>>>> origin/lsf
         def post_process_late(self,data_dict,output_dict):
 
             for cav_id in output_dict.keys():
@@ -1028,10 +877,6 @@ def getIntermediateheterFusionDataset(cls):
             point_num = self.pointnum
             return pred_box_tensor, pred_score, gt_box_tensor, point_num
             
-<<<<<<< HEAD
-        
-=======
->>>>>>> origin/lsf
 
 
     return IntermediateheterFusionDataset

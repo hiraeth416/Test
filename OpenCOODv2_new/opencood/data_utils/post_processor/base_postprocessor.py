@@ -458,13 +458,9 @@ class BasePostprocessor(object):
         output_dict = {}
         filter_range = self.params['anchor_args']['cav_lidar_range']
 
-<<<<<<< HEAD
-        cav_coor = cav_content['params']['lidar_pose'] # T_world_cav
-=======
         cav_coor = cav_content['params']['lidar_pose_clean'] # T_world_cav
 
         
->>>>>>> origin/lsf
         ego_coor = reference_lidar_pose # T_world_ego
         T_ego_cav = x1_to_x2(cav_coor, ego_coor) # T_ego_cav
 
